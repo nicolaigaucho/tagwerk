@@ -969,6 +969,7 @@ function quickFood(f) {
 /* ---------- Foto-Erkennung ---------- */
 const PHOTO_ERR = {
   credit: 'Foto-Erkennung pausiert: API-Guthaben oder Monatslimit erreicht. Trag die Mahlzeit über den Baukasten ein.',
+  permission: 'Der API-Schlüssel darf dieses Modell nicht nutzen.',
   missing: 'Die Foto-Erkennung ist noch nicht eingerichtet.',
   key: 'Der API-Schlüssel stimmt nicht. Bitte in GitHub prüfen.',
   rate: 'Gerade zu viele Anfragen. Versuch es in einer Minute noch einmal.',
@@ -1011,7 +1012,11 @@ async function analyzeFood(file) {
   const res = await (window.TW?.analyzePhoto?.({image, mediaType: 'image/jpeg', foods}) ?? Promise.resolve({error: 'missing'}));
   if (run !== photoRun || !$('#sheet-root').innerHTML) return;
   closeSheet();
-  if (res.error) return toast(PHOTO_ERR[res.error] || 'Das hat nicht geklappt. Versuch es noch einmal.');
+  if (res.error) {
+    const msg = PHOTO_ERR[res.error] || 'Die Foto-Erkennung hat nicht geklappt.';
+    if (!res.detail) return toast(msg);
+    return sheet('Foto-Erkennung', `<p style="margin:0">${esc(msg)}</p><div class="fld"><span class="lab">Antwort von Claude</span><p class="note num" style="margin:0;user-select:text;-webkit-user-select:text">${esc(res.detail)}</p></div><p class="muted small" style="margin:0">Du kannst den Text markieren und kopieren.</p>`, {mod:'food', submit:'OK', onSubmit: () => {}});
+  }
   const r = res.result || {};
   const items = arr(r.items).filter(i => num(i.grams) > 0).map(i => {
     const food = foodById(String(i.food_id || '')) ? String(i.food_id) : '';

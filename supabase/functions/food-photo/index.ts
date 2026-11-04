@@ -91,11 +91,15 @@ So gehst du vor:
       return json({ error: "parse" }, 502);
     }
   } catch (e) {
-    if (e instanceof Anthropic.APIConnectionError) return json({ error: "upstream" }, 502);
-    if (e instanceof Anthropic.AuthenticationError) return json({ error: "key" });
-    if (e instanceof Anthropic.RateLimitError) return json({ error: "rate" });
-    if (e instanceof Anthropic.BadRequestError && /credit|usage limit|spend/i.test(String(e.message))) return json({ error: "credit" });
+    // Originaltext von Claude mitschicken (enthält keine Geheimnisse), damit die App ihn anzeigen kann
+    const detail = String((e as Error)?.message || e).replace(/sk-ant-[\w-]+/g, "***").slice(0, 300);
     console.error(e);
-    return json({ error: "upstream" }, 502);
+    if (e instanceof Anthropic.APIConnectionError) return json({ error: "upstream", detail });
+    if (e instanceof Anthropic.AuthenticationError) return json({ error: "key", detail });
+    if (e instanceof Anthropic.PermissionDeniedError) return json({ error: "permission", detail });
+    if (e instanceof Anthropic.RateLimitError) return json({ error: "rate", detail });
+    if (e instanceof Anthropic.BadRequestError && /credit balance|too low|reached your specified API usage limits|spend limit/i.test(detail)) return json({ error: "credit", detail });
+    if (e instanceof Anthropic.APIError) return json({ error: "api", status: (e as { status?: number }).status ?? 0, detail });
+    return json({ error: "upstream", detail });
   }
 });
