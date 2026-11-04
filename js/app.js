@@ -323,7 +323,7 @@ function vToday() {
   const eatenDish = df && S.day.entries.some(e => e.dish === df.dish.id);
 
   const trainBody = p.type || p.text
-    ? `<div class="item" style="padding-top:0"><div class="main"><div class="t" style="font-size:18px">${esc(planTitle(wd, p, rp))}</div><div class="s">${p.type === 'lauf' ? 'Rotation '+rotation().join(' · ')+' km' : PLAN_TYPES[p.type] || ''}</div></div>${trained ? '<span class="pill solid">erledigt</span>' : p.type === 'ruhe' ? '<span class="pill">Ruhetag</span>' : ''}</div>${!trained && p.type === 'lauf' ? `<div class="row-actions"><button class="btn sm acc" style="--accent:var(--train);flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button><button class="btn sm ghost" style="--accent:var(--train)" data-act="run-new">Details</button></div>` : !trained && p.type === 'kraft' ? `<div class="row-actions"><button class="btn sm acc" style="--accent:var(--train);flex:1" data-act="lift-quick">✓ Wie letztes Mal</button><button class="btn sm ghost" style="--accent:var(--train)" data-act="lift-new">Anpassen</button></div>` : ''}`
+    ? `<div class="item" style="padding-top:0"><div class="main"><div class="t" style="font-size:18px">${esc(planTitle(wd, p, rp))}</div><div class="s">${p.type === 'lauf' ? 'Rotation '+rotation().join(' · ')+' km' : PLAN_TYPES[p.type] || ''}</div></div>${trained ? '<span class="pill solid">erledigt</span>' : p.type === 'ruhe' ? '<span class="pill">Ruhetag</span>' : ''}</div>${!trained && p.type === 'lauf' ? `<div class="row-actions"><button class="btn sm acc" style="--accent:var(--train);flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button><button class="btn sm ghost" style="--accent:var(--train)" data-act="run-new">Details</button></div>` : !trained && p.type === 'kraft' ? `<div class="row-actions"><button class="btn sm acc" style="--accent:var(--train);flex:1" data-act="lift-quick">✓ Geschafft</button><button class="btn sm ghost" style="--accent:var(--train)" data-act="lift-new">Anpassen</button></div>` : ''}`
     : `<p class="muted small" style="margin:0">Für heute ist nichts geplant.</p>`;
   const homeBody = due.length
     ? `<div class="list">${due.slice(0,6).map(c => `<div class="item" data-sr="chore-done" data-id="${c.id}"><div class="main"><div class="t">${esc(c.name)}</div><div class="s">${c.kind === 'waesche' ? 'Wäsche' : 'Putzen'}${c.info ? ' · '+esc(c.info) : ''}</div></div>${duePill(dueIn(c))}<button class="check" data-act="chore-done" data-id="${c.id}" aria-label="${esc(c.name)} erledigt">${ICON.check}</button></div>`).join('')}</div>`
@@ -400,7 +400,7 @@ function vTrain() {
     return `<div class="stack">
       <section class="card week"><div class="list">${ORDER.map(k => { const p = S.plan[k] || {}, r = rp[k]; return `<div class="item ${k === twd ? 'today':''}"><span class="daylabel">${k}</span><div class="main"><div class="t">${esc(planTitle(k, p, rp))}</div><div class="s">${WDN[k]}</div></div>${r?.done ? '<span class="pill solid">gelaufen</span>' : p.type ? `<span class="pill ${p.type !== 'ruhe' ? 'acc':''}">${PLAN_TYPES[p.type]}</span>` : ''}</div>`; }).join('')}</div></section>
       <p class="muted small" style="margin:0">Lauf-Rotation: ${rotation().map(k => fmt(k)+' km').join(' → ')}. Die nächste Distanz richtet sich nach deinem letzten Lauf.</p>
-      <div class="row-actions"><button class="btn acc" style="flex:1" data-act="lift-quick">✓ Kraft wie letztes Mal</button><button class="btn acc" style="flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button></div>
+      <div class="row-actions"><button class="btn acc" style="flex:1" data-act="lift-quick">✓ Kraft geschafft</button><button class="btn acc" style="flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button></div>
       <button class="btn ghost wide" data-act="plan-edit">Wochenplan bearbeiten</button>
     </div>`;
   }
@@ -413,7 +413,7 @@ function vTrain() {
     const bl = Object.values(best).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
     const weekN = S.lifts.filter(l => mondayOf(l.date) === mondayOf(today())).length;
     return `<div class="stack">
-      <div class="row-actions"><button class="btn acc" style="flex:1" data-act="lift-quick">✓ ${esc(liftDefaultTitle().replace(/ · .*/, ''))} wie letztes Mal</button><button class="btn ghost" data-act="lift-new">Anpassen</button></div>
+      <div class="row-actions"><button class="btn acc" style="flex:1" data-act="lift-quick">✓ ${esc(liftDefaultTitle().replace(/ · .*/, ''))} geschafft</button><button class="btn ghost" data-act="lift-new">Anpassen</button></div>
       <div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><div class="k">Diese Woche</div><div class="v">${weekN} <small>von 3</small></div></div><div class="stat"><div class="k">Gesamt</div><div class="v">${lifts.length} <small>Einheiten</small></div></div></div>
       ${lifts.length ? `
       <section class="card"><div class="card-h"><h2>Übungen · zuletzt / bestes Gewicht</h2></div><div class="list">${bl.map(b => `<div class="item"><div class="main"><div class="t">${esc(b.name)}</div><div class="s">${fDate(b.date)}</div></div><div class="r num">${fmt(b.last,1)} <span class="muted">/ ${fmt(b.max,1)} kg</span></div></div>`).join('')}</div></section>
@@ -702,10 +702,22 @@ function shPlan() {
 
 /* lifts */
 const liftTitles = () => { const t = Object.keys(S.plan.templates || {}); S.lifts.forEach(l => { if (l.title && !t.includes(l.title)) t.push(l.title); }); return t; };
+/* Doppelte Progression: im Wiederholungsbereich +1 Wdh., am oberen Ende +Gewicht und zurück an den Anfang */
+const nextTarget = e => {
+  const min = e.min || 8, max = e.max || 12, step = e.step || 2.5;
+  return (e.reps || 0) >= max ? {...e, reps: min, kg: rnd((e.kg || 0) + step, 2), up: 'kg'} : {...e, reps: Math.max(min, (e.reps || min) + 1), up: 'reps'};
+};
+const exMeta = e => ({name: e.name, sets: e.sets, reps: e.reps, kg: e.kg, ...(e.min ? {min: e.min} : {}), ...(e.max ? {max: e.max} : {}), ...(e.step ? {step: e.step} : {})});
 function liftRows(title) {
+  const tpl = arr(S.plan.templates?.[title]);
   const last = [...S.lifts].sort(byDateDesc).find(l => l.title === title);
-  if (last) return arr(last.ex).map(e => ({...e}));
-  return arr(S.plan.templates?.[title]).map(e => ({...e}));
+  if (!last) return tpl.map(e => ({...e}));
+  return arr(last.ex).map(e => {
+    const t = tpl.find(x => x.name === e.name) || {};
+    const base = {...e, min: e.min ?? t.min, max: e.max ?? t.max, step: e.step ?? t.step, hint: t.hint};
+    if (!(e.kg > 0) && t.kg > 0) return {...t};
+    return {...nextTarget(base), prev: {sets: e.sets, reps: e.reps, kg: e.kg}};
+  });
 }
 let liftDraft = null;
 function shLift(l, preset) {
@@ -719,12 +731,13 @@ function shLift(l, preset) {
     ${datePicks(date)}
     ${titles.length ? fld('Einheit', `<div class="picks">${titles.map(t => `<button type="button" class="pk" data-act="lift-title" data-v="${esc(t)}" aria-pressed="${t === title}">${esc(t.replace(/ · .*/, ''))}<small>${esc((t.split(' · ')[1] || ''))}</small></button>`).join('')}</div>`) : ''}
     <input type="hidden" name="title" value="${esc(title)}">
-    ${rows.length ? `<p class="muted small" style="margin:0">Vorbelegt mit deiner letzten Einheit. Nur anpassen, was sich geändert hat.</p>` : ''}
-    <div class="stack" style="gap:8px">${rows.map((e, i) => `<div class="exc"><div class="hd"><span>${esc(e.name)}</span><button type="button" class="x" data-act="ex-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>
-      <div class="mini">${miniStep(`ex${i}_sets`, 'Sätze', e.sets ?? 3, 1)}${miniStep(`ex${i}_reps`, 'Wdh.', e.reps ?? 10, 1)}${miniStep(`ex${i}_kg`, 'kg', e.kg ?? 0, 2.5, 1)}</div></div>`).join('')}</div>
+    ${rows.length && !l ? `<p class="muted small" style="margin:0">Das ist dein Ziel für heute: eine Wiederholung mehr als letztes Mal, am oberen Ende mehr Gewicht. Schaffst du weniger, trag einfach ein, was du geschafft hast.</p>` : ''}
+    <div class="stack" style="gap:8px">${rows.map((e, i) => `<div class="exc"><div class="hd"><span>${esc(e.name)}${e.up ? ` <span class="pill acc">${e.up === 'kg' ? '+' + fmt(e.step || 2.5, 1) + ' kg' : '+1 Wdh.'}</span>` : ''}</span><button type="button" class="x" data-act="ex-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>
+      ${e.hint || e.prev || e.min ? `<div class="muted small" style="margin-top:-6px">${[e.min && e.max ? `Bereich ${e.min} bis ${e.max} Wdh.` : '', e.hint || '', e.prev ? `zuletzt ${e.prev.sets}×${e.prev.reps} mit ${fmt(e.prev.kg, 1)} kg` : ''].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+      <div class="mini">${miniStep(`ex${i}_sets`, 'Sätze', e.sets ?? 3, 1)}${miniStep(`ex${i}_reps`, 'Wdh.', e.reps ?? 10, 1)}${miniStep(`ex${i}_kg`, 'kg', e.kg ?? 0, e.step || 2.5, 1)}</div></div>`).join('')}</div>
     <details class="more"><summary>Übung hinzufügen</summary><div class="addbar"><input id="ex-new" placeholder="z. B. Butterfly" autocomplete="off"><button type="button" class="btn acc" data-act="ex-add">Hinzufügen</button></div></details>`,
   {mod:'train', onSubmit: (f) => {
-    const ex = liftDraft.rows.map((e, i) => ({name: e.name, sets: num(f[`ex${i}_sets`]), reps: num(f[`ex${i}_reps`]), kg: num(f[`ex${i}_kg`])})).filter(e => e.name);
+    const ex = liftDraft.rows.map((e, i) => exMeta({...e, sets: num(f[`ex${i}_sets`]), reps: num(f[`ex${i}_reps`]), kg: num(f[`ex${i}_kg`])})).filter(e => e.name);
     if (!ex.length) { toast('Füge mindestens eine Übung hinzu.'); return false; }
     const data = {date: f.date || today(), title: f.title, ex};
     l ? updItem('lifts', l.id, data) : addItem('lifts', data);
@@ -732,7 +745,7 @@ function shLift(l, preset) {
 }
 function liftSnapshot() {
   const f = Object.fromEntries(new FormData($('#sheet-form')));
-  return {date: f.date, rows: liftDraft.rows.map((e, i) => ({name: e.name, sets: num(f[`ex${i}_sets`]), reps: num(f[`ex${i}_reps`]), kg: num(f[`ex${i}_kg`])}))};
+  return {date: f.date, rows: liftDraft.rows.map((e, i) => ({...e, sets: num(f[`ex${i}_sets`]), reps: num(f[`ex${i}_reps`]), kg: num(f[`ex${i}_kg`])}))};
 }
 
 /* runs */
@@ -928,10 +941,11 @@ function quickRun(km) {
 }
 function liftDefaultTitle() { const p = S.plan[WD[new Date().getDay()]]; return p?.type === 'kraft' && p.text ? p.text : liftTitles()[0] || 'Krafttraining'; }
 function quickLift(title) {
-  title = title || liftDefaultTitle(); const ex = liftRows(title);
+  title = title || liftDefaultTitle(); const rows = liftRows(title), ex = rows.map(exMeta);
   if (!ex.length) return shLift();
   const id = addNow('lifts', {date: today(), title, ex}); if (!id) return;
-  toast(`${title.replace(/ · .*/, '')} wie letztes Mal eingetragen`, {undo: () => delItem('lifts', id), edit: () => shLift(find('lifts', id))});
+  const ups = rows.filter(e => e.up === 'kg').length;
+  toast(`${title.replace(/ · .*/, '')} eingetragen${ups ? `, ${ups}× mehr Gewicht` : ''}`, {undo: () => delItem('lifts', id), edit: () => shLift(find('lifts', id))});
 }
 function eatToday() {
   const r = dishFor(today()); if (!r) return;
@@ -961,7 +975,7 @@ function shQuick() {
     <div class="qgrid">
       ${tile('q-water', 500, 'drop', 'home', '+500 ml', `Wasser · ${fmt(S.day.water)} ml`)}
       ${tile('q-run', km, 'train', 'train', `${fmt(km)} km`, 'Lauf erledigt', ran)}
-      ${tile('q-lift', null, 'train', 'train', 'Kraft', 'wie letztes Mal', lifted)}
+      ${tile('q-lift', null, 'train', 'train', 'Kraft', 'Plan geschafft', lifted)}
       ${df ? tile('q-eat', null, 'food', 'food', 'Gegessen', esc(df.dish.name), ate) : ''}
       ${tile('q-trip', null, 'car', 'car', 'Fahrt', 'Strecke wählen')}
       ${tile('q-fuel', null, 'fuel', 'car', 'Tanken', 'Liter und Preis')}

@@ -141,6 +141,7 @@
           for (const k of [...mem.keys()]) if (k.startsWith(pre)) mem.delete(k);
           const {error} = await sb.from('docs').delete().eq('user_id', uid).like('path', pre + '%'); if (error) throw error;
         }
+        for (const d of docs) if (d.merge && typeof d.path === 'string' && d.data) d.data = merge(mem.get(d.path) || {}, d.data);
         for (const d of docs) if (typeof d.path === 'string' && d.data && typeof d.data === 'object') mem.set(d.path, d.data);
         notify();
         for (let i = 0; i < docs.length; i += 200) {

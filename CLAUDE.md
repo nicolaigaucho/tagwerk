@@ -19,7 +19,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 ## Daten
 - Eine Tabelle `docs (user_id, path, data jsonb)`, Zugriff per RLS nur auf eigene Zeilen, Realtime aktiv.
 - Pfade sind relativ zum Nutzer: Einzeldokumente `plan`, `settings`, `autoshop`, `shopstats`, `pushstate`; Sammlungen `<name>/items/<id>` für `shop`, `lifts`, `runs`, `chores`, `foods`, `dishes`, `meals` (ID = Datum), `days` (ID = Datum, Ernährungs-Tagebuch), `trips`, `fuel`, `pantry`, `recipes`, `pushsubs`.
-- Import-Format für größere Inhaltsänderungen: `{"replace": ["dishes/items/"], "docs": [{"path": "dishes/items/g16", "data": {...}}]}`. Nutzer importiert über Einstellungen › Daten importieren. `replace` (optional, Präfixe mit `/` am Ende) löscht diese Sammlungen vorher, danach Upsert aller `docs`.
+- Import-Format für größere Inhaltsänderungen: `{"replace": ["dishes/items/"], "docs": [{"path": "dishes/items/g16", "data": {...}}]}`. Nutzer importiert über Einstellungen › Daten importieren. `replace` (optional, Präfixe mit `/` am Ende) löscht diese Sammlungen vorher, danach Upsert aller `docs`. Ein Eintrag mit `"merge": true` wird tief in das bestehende Dokument gemischt statt es zu ersetzen (z. B. für `plan`).
 - **Lebensmittel** (`foods`): Nährwerte pro 100 g, `portion` (g), `plabel` (Anzeige, z. B. „1 Ei“), optional `unit` (Stück, Scheiben, Packung) für Mengenangaben, `order`. Der Nutzer isst nur aus seinem festen Lebensmittel-Set (Eier, Hackfleisch, Hähnchenbrust, Aufschnitt, Frischkäse, Nudeln, Reis, Pommes, Brot, TK-Pizza, Paprika, Karotten, Lasagne, Toast, Toastkäse, Salat, Gurke).
 - **Gerichte** (`dishes`): `parts: [{food, g}]` aus diesen Lebensmitteln, daraus berechnet `kcal/p/c/f` und `ingr` („Name Menge“, für Einkaufsliste). Hauptmahlzeit etwa 850 bis 950 kcal.
 - Aus der Cloud-Sitzung ist Supabase per Netzwerk nicht erreichbar: Inhalte also als Import-Datei liefern, nicht direkt schreiben.
@@ -29,6 +29,12 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - **Wäsche-Rotation:** `chores` mit `kind: waesche`, `every > 0`, sortiert nach `order`; nächste = Nachfolger der zuletzt gewaschenen (`last`, bei Gleichstand `doneAt`). `every: 0` heißt bei Bedarf.
 - **Gerichte-Rotation:** `dishes` nach `order`; Gericht eines Tages = ab dem letzten `meals`-Eintrag (fest gewählt oder `anchor`) fortlaufend weitergezählt. Eine Hauptmahlzeit pro Tag.
 - **Auto-Einkauf:** alle 2 Tage ab `autoshop.anchor` (2026-11-04) Zutaten für heute und morgen, IDs `auto-<fenster>-<slug>`, Vorrat wird abgezogen.
+
+## Körperdaten und Ziele (InBody 03.11.2026)
+- 194 cm, 27 Jahre, 87,5 kg, 8,7 % Körperfett, Skelettmuskulatur 46,3 kg (seit 08/2026 −1,3 kg), fettfreie Masse 79,9 kg, Grundumsatz etwa 2.100 kcal.
+- Ziel: **Muskelaufbau**. Tagesziele 3.600 kcal, 175 g Eiweiß, 500 g KH, 100 g Fett, 3,5 l Wasser.
+- Training: Oberkörper 3x (A Brust/Trizeps, B Rücken/Bizeps, C Schultern/Arme), bewusst ohne Beintraining (Wunsch des Nutzers). Läufe 3x mit Rotation 5, 6, 8 km.
+- **Doppelte Progression** (`nextTarget`, `liftRows`): Vorlagen in `plan.templates[titel]` mit `min`, `max` (Wdh.-Bereich), `step` (kg), `hint`. Vorschlag = letzte Einheit +1 Wdh., am oberen Ende +`step` kg und zurück auf `min`. „Geschafft“ speichert den Vorschlag direkt.
 
 ## Essen-Bereich
 - **Baukasten** (`shCombo`): Mahlzeit aus Lebensmitteln per Portionen (½-Schritte) zusammenstellen, als gegessen eintragen oder als Gericht in die Rotation speichern. Gerichte mit `parts` werden ebenfalls im Baukasten bearbeitet.
