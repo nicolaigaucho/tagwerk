@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tagwerk</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tagwerk">
+<meta name="theme-color" content="#f2f2f7">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{margin:0}
+body{font-size:14px;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+img{max-width:100%}
+[hidden]{display:none!important}
+#auth{position:fixed;inset:0;z-index:100;background:#f2f2f7;display:flex;align-items:center;justify-content:center;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+#auth .box{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}
+#auth img{width:76px;height:76px;border-radius:18px;align-self:center}
+#auth h1{text-align:center;margin:0}
+#auth p{text-align:center;margin:0;color:#8a8a8e;font-size:15px}
+#auth .grp{background:#fff;border-radius:12px;overflow:hidden}
+#auth .grp input{border-radius:0;width:100%;border:0;border-bottom:.5px solid #c6c6c8;padding:13px 16px;font-size:17px}
+#auth .grp input:last-child{border-bottom:0}
+#auth .row{display:flex;gap:10px}
+#auth .row .btn{flex:1}
+#auth-msg{min-height:20px;color:#3c3c43!important}
+</style>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="auth" hidden>
+  <form class="box" novalidate>
+    <img src="icons/icon-192.png" alt="">
+    <h1>Tagwerk</h1>
+    <p>Melde dich an, um deinen Alltag zu planen.</p>
+    <div class="grp"><input name="email" type="email" autocomplete="email" placeholder="E-Mail" required><input name="password" type="password" autocomplete="current-password" placeholder="Passwort" required></div>
+    <div class="row"><button class="btn ghost" type="submit" name="mode" value="signup">Konto erstellen</button><button class="btn" type="submit" name="mode" value="login">Anmelden</button></div>
+    <p id="auth-msg" aria-live="polite"></p>
+  </form>
+</div>
+<div class="wrap" id="app"></div>
+<nav class="tabs" aria-label="Bereiche"><div class="in" id="tabs"></div></nav>
+<div id="sheet-root"></div>
+<script src="config.js"></script>
+<script src="js/supabase.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

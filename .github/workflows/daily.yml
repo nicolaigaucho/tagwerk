@@ -1,0 +1,27 @@
+name: Tagesüberblick
+on:
+  schedule:
+    - cron: '40 7 * * *'   # 08:40 / 09:40 Berlin (Winter / Sommer)
+    - cron: '40 8 * * *'   # 09:40 / 10:40 Berlin
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Sofort senden (Test)'
+        type: boolean
+        default: true
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: scripts } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund
+      - run: node daily.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
