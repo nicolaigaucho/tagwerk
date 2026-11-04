@@ -1,0 +1,101 @@
+// Tagwerk: Essensfoto auswerten. Läuft als Supabase Edge Function, der API-Schlüssel liegt nur hier (Secret ANTHROPIC_API_KEY).
+import Anthropic from "npm:@anthropic-ai/sdk@^0.136.0";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
+const client = new Anthropic(); // liest ANTHROPIC_API_KEY aus der Umgebung
+
+const ITEM = {
+  type: "object",
+  additionalProperties: false,
+  required: ["food_id", "name", "grams", "kcal", "p", "c", "f"],
+  properties: {
+    food_id: { type: "string" },
+    name: { type: "string" },
+    grams: { type: "number" },
+    kcal: { type: "number" },
+    p: { type: "number" },
+    c: { type: "number" },
+    f: { type: "number" },
+  },
+};
+const SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title", "items", "confidence", "note"],
+  properties: {
+    title: { type: "string" },
+    items: { type: "array", items: ITEM },
+    confidence: { type: "string", enum: ["hoch", "mittel", "niedrig"] },
+    note: { type: "string" },
+  },
+};
+const TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "method" }, 405);
+
+  let body: { image?: unknown; mediaType?: unknown; foods?: unknown };
+  try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
+  const image = typeof body.image === "string" ? body.image : "";
+  const mediaType = TYPES.includes(String(body.mediaType)) ? String(body.mediaType) : "image/jpeg";
+  if (image.length < 100 || image.length > 7_000_000) return json({ error: "bad_image" }, 400);
+  const foods = Array.isArray(body.foods) ? body.foods.slice(0, 60) : [];
+  const list = foods
+    .map((f: Record<string, unknown>) => `- ID "${String(f.id)}": ${String(f.name)}, 1 Portion = ${String(f.plabel || `${f.portion} g`)} (${Number(f.portion) || 100} g)`)
+    .join("\n");
+
+  const prompt = `Auf dem Foto ist eine Mahlzeit. Schätze, was darauf liegt und wie viel davon.
+
+Die Person isst meistens diese Lebensmittel:
+${list || "(keine Liste)"}
+
+So gehst du vor:
+- Ordne jede erkannte Komponente der passenden ID aus der Liste zu. Passt keine, lass food_id leer ("").
+- grams: geschätzte Menge auf dem Teller, gezählt wie in der Liste. Nudeln und Reis stehen dort ungekocht: rechne die gekochte Menge auf dem Teller in ungekochtes Gewicht um (gekocht geteilt durch etwa 2,5). Pommes zählen als TK-Gewicht.
+- kcal, p (Eiweiß), c (Kohlenhydrate), f (Fett): deine Schätzung für genau diese Menge, in kcal bzw. Gramm.
+- Sichtbare Soße, Butter oder Öl als eigene Komponente ohne ID.
+- title: kurzer deutscher Name der Mahlzeit, zum Beispiel "Hähnchen mit Reis und Paprika".
+- confidence: wie sicher die Mengenschätzung ist. note: ein kurzer deutscher Satz, was unsicher ist, sonst leer.
+- Ist kein Essen zu sehen, gib items leer zurück und erkläre es in note.`;
+
+  try {
+    const res = await client.beta.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: image } },
+          { type: "text", text: prompt },
+        ],
+      }],
+    } as never);
+    // deno-lint-ignore no-explicit-any
+    const r = res as any;
+    if (r.stop_reason === "refusal") return json({ error: "refusal" });
+    const text = (r.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
+    try {
+      return json({ result: JSON.parse(text), usage: { in: r.usage?.input_tokens, out: r.usage?.output_tokens } });
+    } catch {
+      return json({ error: "parse" }, 502);
+    }
+  } catch (e) {
+    if (e instanceof Anthropic.APIConnectionError) return json({ error: "upstream" }, 502);
+    if (e instanceof Anthropic.AuthenticationError) return json({ error: "key" });
+    if (e instanceof Anthropic.RateLimitError) return json({ error: "rate" });
+    if (e instanceof Anthropic.BadRequestError && /credit|usage limit|spend/i.test(String(e.message))) return json({ error: "credit" });
+    console.error(e);
+    return json({ error: "upstream" }, 502);
+  }
+});

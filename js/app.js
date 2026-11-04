@@ -333,6 +333,7 @@ function vToday() {
       <div class="rings">${ring('kcal', tot.kcal, st.kcal, '--food')}${ring('ml Wasser', S.day.water, st.water, '--home')}</div>
       ${meter('Eiweiß', tot.p, st.p, 'g')}
       ${waterBtns()}
+      <button class="btn sm ghost" style="--accent:var(--food);align-self:flex-start" data-act="photo">📷 Essen fotografieren</button>
     </div>`;
   const shopBody = open.length
     ? `<div class="list">${open.slice(0,4).map(i => `<div class="item"><button class="check" data-act="shop-toggle" data-id="${i.id}" aria-label="${esc(i.name)} abhaken">${ICON.check}</button><div class="main"><div class="t">${esc(i.name)}</div></div></div>`).join('')}</div>${open.length > 4 ? `<p class="muted small" style="margin:8px 0 0">und ${open.length-4} weitere</p>` : ''}`
@@ -495,10 +496,10 @@ function vFood() {
         ${meter('Eiweiß', tot.p, st.p, 'g')}${meter('Kohlenhydrate', tot.c, st.c, 'g')}${meter('Fett', tot.f, st.f, 'g')}
       </section>
       ${df ? `<section class="card"><div class="item" style="padding:0;border:0"><div class="main"><div class="s">Gericht des Tages</div><div class="t" style="font-size:17px">${esc(df.dish.name)}</div><div class="s">${fmt(df.dish.kcal)} kcal · E ${fmt(df.dish.p)} · K ${fmt(df.dish.c)} · F ${fmt(df.dish.f)}</div></div>${eatenDish ? '<span class="pill solid">gegessen</span>' : `<button class="btn sm acc" data-act="dish-eat" data-v="${S.dayDate}">✓ Gegessen</button>`}</div></section>` : ''}
-      <button class="btn wide ghost" data-act="combo">Mahlzeit selbst zusammenstellen</button>
+      <div class="row-actions"><button class="btn acc" style="flex:1" data-act="photo">📷 Foto vom Essen</button><button class="btn ghost" style="flex:1" data-act="combo">Selbst zusammenstellen</button></div>
       <section class="card"><div class="card-h"><h2>Schnell eintragen · 1 Portion</h2><button class="link" data-act="food-add">Menge wählen</button></div>${quickFoods(14) || '<p class="muted small" style="margin:0">Lege unter „Nährwerte“ Lebensmittel an.</p>'}</section>
       <section class="card stack" style="gap:11px"><div class="card-h" style="margin:0"><h2>Wasser</h2><span class="muted small num">${fmt(S.day.water)} / ${fmt(st.water)} ml</span></div>${waterBtns()}</section>
-      ${S.day.entries.length ? `<section class="card"><div class="card-h"><h2>Gegessen</h2></div><div class="list">${S.day.entries.map((e,i) => `<div class="item" data-sl="entry-del" data-v="${i}"><div class="main"><div class="t">${esc(e.name)}${e.g ? ` <span class="muted num small">${fmt(e.g)} g</span>` : ''}</div><div class="s num">${fmt(e.kcal)} kcal · E ${fmt(e.p)} · K ${fmt(e.c)} · F ${fmt(e.f)}</div></div><button class="x" data-act="entry-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>`).join('')}</div></section>` : ''}
+      ${S.day.entries.length ? `<section class="card"><div class="card-h"><h2>Gegessen</h2></div><div class="list">${S.day.entries.map((e,i) => `<div class="item" data-sl="entry-del" data-v="${i}"><div class="main" ${e.pid ? `data-act="photo-edit" data-v="${e.pid}" role="button"` : ''}><div class="t">${e.photo ? '📷 ' : ''}${esc(e.name)}${e.g ? ` <span class="muted num small">${fmt(e.g)} g</span>` : ''}</div><div class="s num">${fmt(e.kcal)} kcal · E ${fmt(e.p)} · K ${fmt(e.c)} · F ${fmt(e.f)}</div></div><button class="x" data-act="entry-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>`).join('')}</div></section>` : ''}
     </div>`;
   }
   return vMeals();
@@ -965,6 +966,81 @@ function quickFood(f) {
   toast(`${f.name} eingetragen (${f.plabel || fmt(f.portion || 100) + ' g'})`, {undo: () => { const i = S.day.entries.map(e => e.name).lastIndexOf(f.name); if (i >= 0) { S.day.entries = S.day.entries.filter((_, k) => k !== i); touchDay(); } }});
 }
 
+/* ---------- Foto-Erkennung ---------- */
+const PHOTO_ERR = {
+  credit: 'Foto-Erkennung pausiert: API-Guthaben oder Monatslimit erreicht. Trag die Mahlzeit über den Baukasten ein.',
+  missing: 'Die Foto-Erkennung ist noch nicht eingerichtet.',
+  key: 'Der API-Schlüssel stimmt nicht. Bitte in GitHub prüfen.',
+  rate: 'Gerade zu viele Anfragen. Versuch es in einer Minute noch einmal.',
+  offline: 'Keine Verbindung. Foto-Erkennung braucht Internet.',
+  refusal: 'Dieses Foto konnte nicht ausgewertet werden.',
+  empty: 'Auf dem Foto wurde kein Essen erkannt.'
+};
+let photoRun = 0;
+function pickPhoto() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');
+  inp.onchange = () => { const f = inp.files?.[0]; if (f) analyzeFood(f); };
+  inp.click();
+}
+function shrinkImage(file, max = 1280) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Bild')); };
+    img.src = url;
+  });
+}
+const photoTotals = items => items.reduce((t, i) => { t.kcal += i.kcal; t.p += i.p; t.c += i.c; t.f += i.f; return t; }, {kcal:0, p:0, c:0, f:0});
+function photoItem(i, g = i.g) {
+  const fd = i.food && foodById(i.food);
+  if (fd) { const k = g / 100; return {...i, g, kcal: fd.kcal*k, p: fd.p*k, c: fd.c*k, f: fd.f*k}; }
+  const k = i.g0 > 0 ? g / i.g0 : 1;
+  return {...i, g, kcal: i.kcal0*k, p: i.p0*k, c: i.c0*k, f: i.f0*k};
+}
+async function analyzeFood(file) {
+  const run = ++photoRun;
+  sheet('Foto wird ausgewertet', `<div class="thinking" style="padding:18px 0"><span class="dots"><i></i><i></i><i></i></span>Claude schaut sich dein Essen an …</div><p class="muted small" style="margin:0">Das dauert meist 10 bis 30 Sekunden.</p>`, {mod:'food', submit:''});
+  let image;
+  try { image = await shrinkImage(file); } catch { closeSheet(); return toast('Das Foto konnte nicht gelesen werden.'); }
+  const foods = S.foods.map(f => ({id: f.id, name: f.name, portion: f.portion || 100, plabel: f.plabel || ''}));
+  const res = await (window.TW?.analyzePhoto?.({image, mediaType: 'image/jpeg', foods}) ?? Promise.resolve({error: 'missing'}));
+  if (run !== photoRun || !$('#sheet-root').innerHTML) return;
+  closeSheet();
+  if (res.error) return toast(PHOTO_ERR[res.error] || 'Das hat nicht geklappt. Versuch es noch einmal.');
+  const r = res.result || {};
+  const items = arr(r.items).filter(i => num(i.grams) > 0).map(i => {
+    const food = foodById(String(i.food_id || '')) ? String(i.food_id) : '';
+    return photoItem({food, name: food ? foodById(food).name : String(i.name || 'Unbekannt'), g: Math.round(num(i.grams)), g0: num(i.grams), kcal0: num(i.kcal), p0: num(i.p), c0: num(i.c), f0: num(i.f)});
+  });
+  if (!items.length) return toast(r.note ? String(r.note) : PHOTO_ERR.empty);
+  ensureToday();
+  const t = roundT(photoTotals(items)), pid = 'ph' + Date.now();
+  const entry = {name: String(r.title || 'Mahlzeit (Foto)'), ...t, photo: true, pid, conf: String(r.confidence || ''), note: String(r.note || ''), items: items.map(i => ({...i, kcal: rnd(i.kcal, 1), p: rnd(i.p, 1), c: rnd(i.c, 1), f: rnd(i.f, 1)}))};
+  S.day.entries = [...S.day.entries, entry]; touchDay();
+  toast(`📷 ${entry.name}: ${fmt(t.kcal)} kcal, ${fmt(t.p)} g Eiweiß`, {undo: () => { S.day.entries = S.day.entries.filter(e => e.pid !== pid); touchDay(); }, edit: () => shPhotoEdit(pid)});
+}
+function shPhotoEdit(pid) {
+  const e = S.day.entries.find(x => x.pid === pid); if (!e) return;
+  const items = arr(e.items);
+  sheet('Foto-Eintrag anpassen', `
+    ${inp('name', 'Name', e.name)}
+    ${e.note ? `<p class="note" style="margin:0">${esc(e.note)}</p>` : ''}
+    ${items.map((i, k) => stepper(`pg${k}`, esc(i.name), Math.round(i.g), {steps:[10, 50], unit:'g'})).join('')}
+    <div class="note num" id="photo-sum" style="margin:0;font-weight:600"></div>`,
+  {mod:'food', onSubmit: f => {
+    const nx = items.map((i, k) => photoItem(i, num(f[`pg${k}`]))).filter(i => i.g > 0);
+    const t = roundT(photoTotals(nx));
+    S.day.entries = S.day.entries.map(x => x.pid === pid ? {...x, name: f.name.trim() || x.name, ...t, items: nx.map(i => ({...i, kcal: rnd(i.kcal, 1), p: rnd(i.p, 1), c: rnd(i.c, 1), f: rnd(i.f, 1)}))} : x);
+    touchDay(); toast('Foto-Eintrag angepasst');
+  }, onDelete: () => { S.day.entries = S.day.entries.filter(x => x.pid !== pid); touchDay(); },
+  after: form => { const upd = () => { const f = Object.fromEntries(new FormData(form)); const t = photoTotals(items.map((i, k) => photoItem(i, num(f[`pg${k}`])))); $('#photo-sum').textContent = `Summe: ${fmt(t.kcal)} kcal · E ${fmt(t.p)} g · K ${fmt(t.c)} g · F ${fmt(t.f)} g`; }; form.addEventListener('input', upd); upd(); }});
+}
+
 /* ---------- Plus-Knopf: Schnellmenü ---------- */
 function shQuick() {
   const t = today(), df = dishFor(t), km = rotation()[nextRunIdx()], routes = lastOdo() ? topRoutes() : [];
@@ -972,6 +1048,7 @@ function shQuick() {
   const tile = (act, v, icon, mod, label, sub, done) => `<button type="button" class="qtile ${done ? 'is-done' : ''}" data-act="${act}" ${v != null ? `data-v="${esc(v)}"` : ''}><span class="ti" style="--m:var(--${mod})">${ICON[icon]}</span><b>${label}</b><small>${done ? 'heute erledigt' : sub}</small></button>`;
   const sug = shopSuggest(S.shop.map(i => i.name)).slice(0, 12);
   sheet('Schnell eintragen', `
+    <button type="button" class="btn acc wide" style="--accent:var(--food)" data-act="photo">📷 Essen fotografieren</button>
     <div class="qgrid">
       ${tile('q-water', 500, 'drop', 'home', '+500 ml', `Wasser · ${fmt(S.day.water)} ml`)}
       ${tile('q-run', km, 'train', 'train', `${fmt(km)} km`, 'Lauf erledigt', ran)}
@@ -1055,6 +1132,8 @@ const ACT = {
   'chore-new': () => shChore(), 'chore-edit': (v, el) => shChore(find('chores', el.dataset.id)),
   'chore-done': (v, el) => { const c = find('chores', el.dataset.id); if (c) choreDone(c); },
   quick: () => shQuick(),
+  photo: () => { closeSheet(); pickPhoto(); },
+  'photo-edit': v => shPhotoEdit(v),
   'q-water': () => { closeSheet(); ensureToday(); S.day.water = (S.day.water || 0) + 500; touchDay(); toast('+500 ml Wasser', {undo: () => { S.day.water = Math.max(0, S.day.water - 500); touchDay(); }}); },
   'q-run': v => { closeSheet(); quickRun(num(v)); }, 'q-lift': () => { closeSheet(); quickLift(); }, 'q-eat': () => { closeSheet(); eatToday(); },
   'q-trip': () => shTrip(), 'q-fuel': () => shFuel(),

@@ -155,7 +155,22 @@
   }
   function alertBox(msg) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 3500); }
 
-  window.TW = {email: () => email, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
+  /* ---------- Foto-Erkennung (Supabase-Funktion food-photo) ---------- */
+  async function analyzePhoto(payload) {
+    if (!navigator.onLine) return {error: 'offline'};
+    try {
+      const {data, error} = await sb.functions.invoke('food-photo', {body: payload});
+      if (error) {
+        const st = error.context?.status;
+        if (st === 404) return {error: 'missing'};
+        if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') return {error: 'missing'};
+        return {error: 'upstream'};
+      }
+      return data || {error: 'upstream'};
+    } catch { return {error: 'upstream'}; }
+  }
+
+  window.TW = {analyzePhoto, email: () => email, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
 
   /* ---------- auth screen ---------- */
   const authEl = document.getElementById('auth');

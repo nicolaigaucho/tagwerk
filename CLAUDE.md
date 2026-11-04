@@ -15,6 +15,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 | `sw.js` | Service Worker: Offline-Cache und Push-Anzeige. **Bei jeder Änderung an App-Dateien die Version überall hochzählen:** `CACHE` in `sw.js` (`tagwerk-vN`), die `?v=N` an allen Dateien in `index.html` und `window.TAGWERK_VERSION` (wird in den Einstellungen angezeigt) |
 | `scripts/daily.mjs` + `.github/workflows/daily.yml` | Täglicher Push gegen 10 Uhr Berlin (GitHub Action, zwei Crons, Skript prüft Uhrzeit und sendet einmal pro Tag) |
 | `supabase/setup.sql` | Einmaliges Datenbank-Setup |
+| `supabase/functions/food-photo/index.ts` + `.github/workflows/functions.yml` | Foto-Erkennung: Edge Function ruft Claude Opus 5.5 (Bild + Lebensmittel-Liste, strukturierte JSON-Antwort, `fallbacks: "default"`). Wird per GitHub Action mit der Supabase CLI veröffentlicht |
 
 ## Daten
 - Eine Tabelle `docs (user_id, path, data jsonb)`, Zugriff per RLS nur auf eigene Zeilen, Realtime aktiv.
@@ -40,6 +41,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - **Baukasten** (`shCombo`): Mahlzeit aus Lebensmitteln per Portionen (½-Schritte) zusammenstellen, als gegessen eintragen oder als Gericht in die Rotation speichern. Gerichte mit `parts` werden ebenfalls im Baukasten bearbeitet.
 - **Vorrat**: Vorschläge kommen aus den Lebensmittel-Namen; „Daraus kannst du kochen“ vergleicht `parts` mit dem Vorrat (Namensgleichheit). Einkaufsliste und Vorrat gleichen Namen exakt ab, nicht per Wortanfang.
 - KI-Rezepte sind in der eigenständigen Version aus (kein `sample`).
+- **Foto-Erkennung** (`pickPhoto`, `analyzeFood`, `shPhotoEdit`, `TW.analyzePhoto`): Foto wird auf max. 1280 px als JPEG verkleinert, an `food-photo` geschickt. Erkannte Komponenten mit `food_id` werden mit den eigenen Nährwerten berechnet, Unbekanntes mit Claudes Schätzung. Eintrag sofort speichern (`photo: true`, `pid`, `items`), Toast mit Rückgängig/Ändern. Kosten trägt der Nutzer über sein API-Guthaben (Pro-Abo, 5 $ Monatslimit): sparsam bleiben, kein Bild doppelt senden.
 
 ## Bedienung (möglichst wenige Klicks)
 - **Sofort speichern statt Formular:** `quickRun`, `quickLift`, `eatToday`, `choreDone`, `quickFood`, Routen speichern direkt und zeigen `toast(msg, {undo, edit})` mit „Rückgängig“ und „Ändern“. Löschen über `delUndo`. Neue Aktionen nach diesem Muster bauen.
@@ -52,4 +54,4 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 ## Arbeitsweise
 - Änderungen testen: lokal `python3 -m http.server` und mit Playwright und einem Supabase-Stub (`window.supabase.createClient`) prüfen, Breite 390 px.
 - Commit auf `main` und pushen, GitHub Pages veröffentlicht automatisch unter https://nicolaigaucho.github.io/tagwerk/
-- Keine Geheimnisse ins Repository. Secrets der Action: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `VAPID_PRIVATE_KEY`.
+- Keine Geheimnisse ins Repository. Secrets der Actions: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `VAPID_PRIVATE_KEY` (Push) sowie `SUPABASE_ACCESS_TOKEN`, `ANTHROPIC_API_KEY` (Foto-Erkennung).
