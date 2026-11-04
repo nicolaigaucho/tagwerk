@@ -50,8 +50,8 @@ const SUBS = {
 const DEF_SET = {kcal:2600, p:140, c:320, f:80, water:3000};
 const DEF_ROT = [5, 8, 10];
 const PLAN_TYPES = {kraft:'Kraft', lauf:'Lauf', ruhe:'Ruhe', sonst:'Sonstiges'};
-const DEF_SHOP = ['Milch','Eier','Brot','Haferflocken','Bananen','Äpfel','Skyr','Magerquark','Hähnchenbrust','Reis','Nudeln','Tomaten','Gurke','Paprika','Käse','Joghurt','Kaffee','Toilettenpapier','Spülmittel','Müllbeutel'];
-const DEF_PANTRY = ['Eier','Kartoffeln','Reis','Nudeln','Haferflocken','Zwiebeln','Knoblauch','Tomaten','Paprika','Spinat','Brokkoli','Hähnchenbrust','Hackfleisch','Thunfisch','Feta','Käse','Magerquark','Skyr','Linsen','Kidneybohnen','Mais','Kokosmilch','Tofu','Lachs'];
+const DEF_SHOP = ['Milch','Butter','Öl','Kaffee','Toilettenpapier','Küchenrolle','Spülmittel','Müllbeutel'];
+const foodNames = () => [...S.foods].sort((a,b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name, 'de')).map(f => f.name);
 const PURPOSES = ['Arbeit','Einkauf','Sport','Freizeit','Besuch','Urlaub','Sonstiges'];
 
 /* ---------- state ---------- */
@@ -211,7 +211,7 @@ const lastOdo = () => Math.max(0, ...S.trips.map(t => t.endKm || 0), ...S.fuel.m
 const avgPace = () => { const r = [...S.runs].sort(byDateDesc).slice(0, 10); const km = sum(r, x => x.km); return km > 0 ? sum(r, x => x.sec) / km : 360; };
 function shopSuggest(exclude) {
   const c = S.shopstats.counts || {}, ex = new Set(exclude.map(x => x.toLowerCase()));
-  const names = [...new Set([...Object.keys(c).sort((a,b) => c[b] - c[a]), ...DEF_SHOP])];
+  const names = [...new Set([...foodNames(), ...Object.keys(c).sort((a,b) => c[b] - c[a]), ...DEF_SHOP])];
   return names.filter(n => !ex.has(n.toLowerCase()));
 }
 
@@ -229,7 +229,7 @@ async function syncAutoShop() {
   try {
     const days = [ws, addDays(ws, 1)].filter(d => d >= t), pantry = S.pantry.map(x => x.name.toLowerCase()), want = {};
     days.forEach(d => { const r = dishFor(d); if (!r) return; arr(r.dish.ingr).forEach(x => {
-      const {name, amt} = splitIngr(x); if (!name || pantry.some(pn => name.toLowerCase().startsWith(pn))) return;
+      const {name, amt} = splitIngr(x); if (!name || pantry.includes(name.toLowerCase())) return;
       const w = (want[name.toLowerCase()] ||= {name, amts:[], days:new Set()}); if (amt) w.amts.push(amt); w.days.add(d); }); });
     const created = new Set(S.autoshop.win === ws ? arr(S.autoshop.created) : []); let changed = S.autoshop.win !== ws;
     const existing = S.shop.filter(i => i.auto && i.win === ws), wantIds = new Set();
@@ -284,7 +284,7 @@ const meter = (label, val, goal, unit) => { const pct = goal > 0 ? Math.min(100,
 const waterBtns = () => `<div class="row-actions"><button class="btn sm ghost" data-act="water" data-v="250">+250 ml</button><button class="btn sm ghost" data-act="water" data-v="500">+500 ml</button><button class="btn sm ghost" data-act="water" data-v="750">+750 ml</button><button class="btn sm ghost" data-act="water" data-v="-250">−250</button></div>`;
 const quickFoods = (n = 12) => {
   const f = [...S.foods].sort((a,b) => (b.uses||0) - (a.uses||0) || a.name.localeCompare(b.name, 'de')).slice(0, n);
-  return f.length ? `<div class="qchips">${f.map(x => `<button class="qc" data-act="food-quick" data-id="${x.id}">${esc(x.name)}<small>${fmt(x.portion || 100)} g</small></button>`).join('')}</div>` : '';
+  return f.length ? `<div class="qchips">${f.map(x => `<button class="qc" data-act="food-quick" data-id="${x.id}">${esc(x.name)}<small>${esc(x.plabel || fmt(x.portion || 100) + ' g')}</small></button>`).join('')}</div>` : '';
 };
 
 /* --- Heute --- */
@@ -441,6 +441,7 @@ function vFood() {
         ${meter('Eiweiß', tot.p, st.p, 'g')}${meter('Kohlenhydrate', tot.c, st.c, 'g')}${meter('Fett', tot.f, st.f, 'g')}
       </section>
       ${df ? `<section class="card"><div class="item" style="padding:0;border:0"><div class="main"><div class="s">Gericht des Tages</div><div class="t" style="font-size:17px">${esc(df.dish.name)}</div><div class="s">${fmt(df.dish.kcal)} kcal · E ${fmt(df.dish.p)} · K ${fmt(df.dish.c)} · F ${fmt(df.dish.f)}</div></div>${eatenDish ? '<span class="pill solid">gegessen</span>' : `<button class="btn sm acc" data-act="dish-eat" data-v="${S.dayDate}">Gegessen</button>`}</div></section>` : ''}
+      <button class="btn wide ghost" data-act="combo">Mahlzeit selbst zusammenstellen</button>
       <section class="card"><div class="card-h"><h2>Schnell eintragen · 1 Portion</h2><button class="link" data-act="food-add">Menge wählen</button></div>${quickFoods(14) || '<p class="muted small" style="margin:0">Lege unter „Nährwerte“ Lebensmittel an.</p>'}</section>
       <section class="card stack" style="gap:11px"><div class="card-h" style="margin:0"><h2>Wasser</h2><span class="muted small num">${fmt(S.day.water)} / ${fmt(st.water)} ml</span></div>${waterBtns()}</section>
       ${S.day.entries.length ? `<section class="card"><div class="card-h"><h2>Gegessen</h2></div><div class="list">${S.day.entries.map((e,i) => `<div class="item"><div class="main"><div class="t">${esc(e.name)}${e.g ? ` <span class="muted num small">${fmt(e.g)} g</span>` : ''}</div><div class="s num">${fmt(e.kcal)} kcal · E ${fmt(e.p)} · K ${fmt(e.c)} · F ${fmt(e.f)}</div></div><button class="x" data-act="entry-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>`).join('')}</div></section>` : ''}
@@ -464,7 +465,7 @@ function vMeals() {
     <section class="card week"><div class="list">${days.map(d => { const r = dishFor(d); return `<div class="item ${d === t ? 'today':''}"><span class="daylabel">${wdOf(d)}</span><button class="main" data-act="dish-pick" data-v="${d}"><div class="t">${esc(r.dish.name)}</div><div class="s">${fmt(r.dish.kcal)} kcal · ${fmt(r.dish.p)} g Eiweiß${r.fixed ? ' · getauscht' : ''}</div></button><button class="btn sm ghost" data-act="dish-next" data-v="${d}" aria-label="Anderes Gericht">Tauschen</button></div>`; }).join('')}</div></section>
     <button class="btn wide acc" data-act="week-shop">Zutaten der Woche auf die Einkaufsliste</button>
     <p class="muted small" style="margin:0">Eine Hauptmahlzeit pro Tag, im Schnitt ${fmt(avgK)} kcal und ${fmt(avgP)} g Eiweiß. Tauschst du ein Gericht, rotieren die folgenden Tage ab dort weiter.</p>
-    <section class="card"><div class="card-h"><h2>Gerichte in der Rotation · ${L.length}</h2><button class="link" data-act="dish-new">Hinzufügen</button></div><div class="list">${L.map((d, i) => `<div class="item"><span class="num-badge">${i+1}</span><button class="main" data-act="dish-edit" data-id="${d.id}"><div class="t">${esc(d.name)}</div><div class="s num">${fmt(d.kcal)} kcal · E ${fmt(d.p)} · K ${fmt(d.c)} · F ${fmt(d.f)}</div></button><span class="muted">›</span></div>`).join('')}</div></section>
+    <section class="card"><div class="card-h"><h2>Gerichte in der Rotation · ${L.length}</h2><button class="link" data-act="combo-new">Hinzufügen</button></div><div class="list">${L.map((d, i) => `<div class="item"><span class="num-badge">${i+1}</span><button class="main" data-act="dish-edit" data-id="${d.id}"><div class="t">${esc(d.name)}</div><div class="s num">${fmt(d.kcal)} kcal · E ${fmt(d.p)} · K ${fmt(d.c)} · F ${fmt(d.f)}</div>${arr(d.ingr).length ? `<div class="s">${esc(arr(d.ingr).join(', '))}</div>` : ''}</button><span class="muted">›</span></div>`).join('')}</div></section>
   </div>`;
 }
 
@@ -472,12 +473,14 @@ function vMeals() {
 function vPantry() {
   const items = [...S.pantry].sort((a,b) => a.name.localeCompare(b.name, 'de')), o = S.rOpt;
   const have = new Set(items.map(i => i.name.toLowerCase()));
-  const sug = [...new Set([...DEF_PANTRY, ...Object.keys(S.shopstats.counts || {})])].filter(n => !have.has(n.toLowerCase())).slice(0, 18);
+  const sug = [...new Set([...foodNames(), ...Object.keys(S.shopstats.counts || {})])].filter(n => !have.has(n.toLowerCase())).slice(0, 20);
+  const ideas = items.length ? cookIdeas() : [];
   const pk = (key, opts) => `<div class="picks">${opts.map(([v,l]) => `<button class="pk" data-act="ropt" data-t="${key}" data-v="${v}" aria-pressed="${String(o[key]) === v}">${l}</button>`).join('')}</div>`;
   return `<div class="stack">
     <section class="card"><div class="card-h"><h2>Was ist noch da?</h2></div><div class="qchips">${sug.map(n => `<button class="qc" data-act="pantry-quick" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>
       <details class="more" style="margin-top:12px"><summary>Etwas anderes eintippen</summary><form class="addbar" data-form="pantry"><input id="pantry-in" placeholder="z. B. Halloumi" autocomplete="off" enterkeyhint="done"><button class="btn acc" type="submit">Hinzufügen</button></form></details></section>
     ${items.length ? `<section class="card"><div class="card-h"><h2>Zuhause vorrätig · ${items.length}</h2><button class="link" data-act="pantry-clear">Alle löschen</button></div><div class="chips">${items.map(i => `<span class="chip"><span>${esc(i.name)}</span><button class="x" data-act="pantry-del" data-id="${i.id}" aria-label="${esc(i.name)} entfernen">×</button></span>`).join('')}</div></section>` : ''}
+    ${ideas.length ? `<section class="card"><div class="card-h"><h2>Daraus kannst du kochen</h2></div><div class="list">${ideas.map(x => `<div class="item"><div class="main"><div class="t">${esc(x.d.name)}</div><div class="s">${x.miss.length ? 'Fehlt: ' + esc(x.miss.join(', ')) : 'Alles da'} · ${fmt(x.d.kcal)} kcal</div></div><button class="btn sm ${x.miss.length ? 'ghost' : 'acc'}" data-act="cook-today" data-id="${x.d.id}">Heute</button></div>`).join('')}</div></section>` : ''}
     ${items.length && sampleFn ? `<section class="card stack" style="gap:12px">
       <h2>Rezept-Wünsche</h2>
       <div class="fld"><span class="lab">Mahlzeit</span>${pk('meal', [['Frühstück','Frühstück'],['Mittagessen','Mittag'],['Abendessen','Abend'],['Snack','Snack']])}</div>
@@ -786,6 +789,46 @@ function shDish(d) {
   }, onDelete: d && (() => delItem('dishes', d.id))});
 }
 
+/* Baukasten: Mahlzeit aus Lebensmitteln zusammenstellen */
+const foodById = id => S.foods.find(f => f.id === id);
+const partsTotals = parts => parts.reduce((t, {food, g}) => { const f = foodById(food); if (!f) return t; const k = g / 100; t.kcal += f.kcal*k; t.p += f.p*k; t.c += f.c*k; t.f += f.f*k; return t; }, {kcal:0, p:0, c:0, f:0});
+const roundT = t => ({kcal: Math.round(t.kcal), p: Math.round(t.p), c: Math.round(t.c), f: Math.round(t.f)});
+const numDe = n => String(rnd(n, 1)).replace('.', ',');
+const ingrOf = parts => parts.map(({food, g}) => { const f = foodById(food); if (!f) return null; return `${f.name} ${f.unit ? `${numDe(g / (f.portion || 100))} ${f.unit}` : `${fmt(g)} g`}`; }).filter(Boolean);
+const comboParts = f => S.foods.map(fd => ({food: fd.id, g: Math.round(num(f['c_' + fd.id]) * (fd.portion || 100))})).filter(p => p.g > 0);
+function autoName(parts) {
+  const ns = [...parts].sort((a, b) => partsTotals([b]).kcal - partsTotals([a]).kcal).map(p => foodById(p.food)?.name).filter(Boolean);
+  return ns.length > 1 ? `${ns[0]} mit ${ns.slice(1, 3).join(' und ')}` : ns[0] || 'Eigene Mahlzeit';
+}
+const cstep = (id, v) => `<div class="cstep"><button type="button" data-act="step" data-t="c_${id}" data-d="-0.5" aria-label="weniger">−</button><output id="o-c_${id}">${fmt(v, 1)}</output><button type="button" data-act="step" data-t="c_${id}" data-d="0.5" aria-label="mehr">+</button><input type="hidden" name="c_${id}" id="f-c_${id}" value="${v}" data-dec="1" data-min="0"></div>`;
+function shCombo(dish, asDish = false) {
+  const foods = [...S.foods].sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name, 'de'));
+  if (!foods.length) return toast('Lege zuerst unter „Nährwerte“ Lebensmittel an.');
+  const cur = {}; arr(dish?.parts).forEach(p => { const f = foodById(p.food); if (f) cur[p.food] = rnd(p.g / (f.portion || 100), 1); });
+  const mode = dish ? 'edit' : asDish ? 'new' : 'eat';
+  sheet(dish ? 'Gericht bearbeiten' : asDish ? 'Neues Gericht' : 'Mahlzeit zusammenstellen', `
+    ${inp('name', 'Name (optional)', dish?.name || '', {ph: 'wird sonst automatisch vergeben'})}
+    <p class="muted small" style="margin:0">Mit + und − stellst du die Portionen ein (je ½ Portion).</p>
+    <div class="card" style="padding:2px 14px"><div class="list">${foods.map(f => `<div class="item"><div class="main"><div class="t">${esc(f.name)}</div><div class="s">1 Portion = ${esc(f.plabel || fmt(f.portion || 100) + ' g')} · ${fmt(f.kcal * (f.portion || 100) / 100)} kcal</div></div>${cstep(f.id, cur[f.id] || 0)}</div>`).join('')}</div></div>
+    <div class="note num" id="combo-sum" style="margin:0;font-weight:600"></div>
+    ${mode === 'eat' ? '<button type="button" class="btn ghost" data-act="combo-save">Stattdessen als Gericht in die Rotation</button>' : ''}`,
+  {mod: 'food', submit: mode === 'eat' ? 'Gegessen eintragen' : mode === 'new' ? 'In die Rotation' : 'Speichern', onSubmit: f => {
+    const parts = comboParts(f); if (!parts.length) { toast('Wähle mindestens ein Lebensmittel.'); return false; }
+    const name = f.name.trim() || autoName(parts), t = roundT(partsTotals(parts));
+    if (mode === 'edit') return void updItem('dishes', dish.id, {name, parts, ingr: ingrOf(parts), ...t});
+    if (mode === 'new') { addItem('dishes', {name, parts, ingr: ingrOf(parts), ...t, order: Math.max(0, ...S.dishes.map(x => x.order || 0)) + 1}); return void toast(`${name} ist jetzt in der Rotation.`); }
+    ensureToday(); S.day.entries = [...S.day.entries, {name, ...t}]; touchDay(); toast(`${name} eingetragen.`);
+  }, onDelete: dish && (() => delItem('dishes', dish.id)),
+  after: form => { const upd = () => { const parts = comboParts(Object.fromEntries(new FormData(form))), t = partsTotals(parts); $('#combo-sum').textContent = parts.length ? `Summe: ${fmt(t.kcal)} kcal · E ${fmt(t.p)} g · K ${fmt(t.c)} g · F ${fmt(t.f)} g` : 'Noch nichts ausgewählt.'; }; form.addEventListener('input', upd); upd(); }});
+}
+function cookIdeas() {
+  const have = new Set(S.pantry.map(i => i.name.toLowerCase()));
+  return dishList().filter(d => arr(d.parts).length).map(d => {
+    const names = d.parts.map(p => foodById(p.food)?.name).filter(Boolean), miss = names.filter(n => !have.has(n.toLowerCase()));
+    return {d, miss, ok: names.length - miss.length};
+  }).filter(x => x.ok > 0).sort((a, b) => a.miss.length - b.miss.length || b.ok - a.ok).slice(0, 6);
+}
+
 /* car */
 function shTrip(t) {
   const odo = t?.startKm ?? lastOdo(), dist = t ? t.endKm - t.startKm : 10;
@@ -876,11 +919,15 @@ const ACT = {
   'dish-set': (v, el) => { needDb() && save(col('meals').doc(v).set({date: v, dish: el.dataset.id})); closeSheet(); },
   'dish-reset': v => { needDb() && save(col('meals').doc(v).delete()); closeSheet(); },
   'dish-eat': v => { closeSheet(); eatDish(v); },
-  'dish-new': () => shDish(), 'dish-edit': (v, el) => shDish(find('dishes', el.dataset.id)),
+  'dish-new': () => shCombo(), 'dish-edit': (v, el) => { const d = find('dishes', el.dataset.id); if (d) arr(d.parts).length ? shCombo(d) : shDish(d); },
+  combo: () => shCombo(), 'combo-new': () => shCombo(null, true),
+  'combo-save': () => { const f = Object.fromEntries(new FormData($('#sheet-form'))), parts = comboParts(f); if (!parts.length) return toast('Wähle mindestens ein Lebensmittel.');
+    const name = f.name.trim() || autoName(parts); addItem('dishes', {name, parts, ingr: ingrOf(parts), ...roundT(partsTotals(parts)), order: Math.max(0, ...S.dishes.map(x => x.order || 0)) + 1}); closeSheet(); toast(`${name} ist jetzt in der Rotation.`); },
+  'cook-today': (v, el) => { const t = today(); needDb() && save(col('meals').doc(t).set({date: t, dish: el.dataset.id})); toast('Steht heute im Kochplan. Die Tage danach rotieren ab dort weiter.'); },
   'week-shop': async () => {
     const days = [...Array(7)].map((_, i) => addDays(S.weekStart, i)).filter(d => d >= today());
     const pantry = S.pantry.map(p => p.name.toLowerCase());
-    const items = [...new Set(days.flatMap(d => arr(dishFor(d)?.dish.ingr)))].filter(x => !pantry.some(p => x.toLowerCase().startsWith(p)));
+    const items = [...new Set(days.flatMap(d => arr(dishFor(d)?.dish.ingr)))].filter(x => !pantry.includes(splitIngr(x).name.toLowerCase()));
     const have = new Set(S.shop.filter(i => !i.done).map(i => i.name.toLowerCase()));
     let n = 0; for (const name of items) if (!have.has(name.toLowerCase())) { await addItem('shop', {name, done:false}); n++; }
     toast(n ? `${n} Zutaten für ${days.length} Tage auf der Liste` : 'Alles steht schon auf der Liste');

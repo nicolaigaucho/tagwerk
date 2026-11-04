@@ -136,6 +136,11 @@
         const data = JSON.parse(await inp.files[0].text());
         const docs = Array.isArray(data.docs) ? data.docs : [];
         if (!docs.length) throw new Error('leer');
+        const replace = Array.isArray(data.replace) ? data.replace.filter(x => typeof x === 'string' && x.endsWith('/')) : [];
+        for (const pre of replace) {
+          for (const k of [...mem.keys()]) if (k.startsWith(pre)) mem.delete(k);
+          const {error} = await sb.from('docs').delete().eq('user_id', uid).like('path', pre + '%'); if (error) throw error;
+        }
         for (const d of docs) if (typeof d.path === 'string' && d.data && typeof d.data === 'object') mem.set(d.path, d.data);
         notify();
         for (let i = 0; i < docs.length; i += 200) {

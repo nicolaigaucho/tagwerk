@@ -286,3 +286,7 @@ nav.tabs button[aria-current="page"] svg{stroke-width:2.2}
 .toast{border-radius:14px;font-weight:500;background:rgb(30 30 30 / .92);color:#fff}
 .thinking{font-weight:500}
 
+
+.cstep{display:flex;align-items:center;gap:4px;flex:none}
+.cstep button{width:34px;height:34px;border-radius:9px;border:0;background:var(--raise2);color:var(--accent);font-weight:600;font-size:19px;padding:0}
+.cstep output{min-width:36px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
