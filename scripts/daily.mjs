@@ -1,8 +1,17 @@
 // Tagwerk: täglicher Überblick als Push-Mitteilung. Läuft als GitHub Action.
 import webpush from 'web-push';
+import {readFileSync} from 'node:fs';
 
-const {SUPABASE_URL, SUPABASE_SECRET_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT = 'mailto:tagwerk@example.com', FORCE} = process.env;
-if (!SUPABASE_URL || !SUPABASE_SECRET_KEY || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) { console.error('Secrets fehlen.'); process.exit(1); }
+const clean = v => String(v || '').replace(/\s+/g, '');
+const env = process.env, FORCE = env.FORCE, VAPID_SUBJECT = env.VAPID_SUBJECT || 'mailto:tagwerk@example.com';
+const SUPABASE_URL = clean(env.SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+const SUPABASE_SECRET_KEY = clean(env.SUPABASE_SECRET_KEY), VAPID_PRIVATE_KEY = clean(env.VAPID_PRIVATE_KEY);
+// Öffentlicher Schlüssel kommt aus config.js (ist ohnehin öffentlich), Secret nur als Ersatz.
+const fromConfig = (readFileSync(new URL('../config.js', import.meta.url), 'utf8').match(/vapidPublicKey:\s*'([^']+)'/) || [])[1];
+const VAPID_PUBLIC_KEY = fromConfig && !fromConfig.includes('HIER') ? fromConfig : clean(env.VAPID_PUBLIC_KEY);
+const missing = Object.entries({SUPABASE_URL, SUPABASE_SECRET_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY}).filter(([, v]) => !v).map(([k]) => k);
+if (missing.length) { console.error('Secrets fehlen:', missing.join(', ')); process.exit(1); }
+console.log('Längen: URL', SUPABASE_URL.length, '| Secret', SUPABASE_SECRET_KEY.length, '| VAPID privat', VAPID_PRIVATE_KEY.length, '(soll 43)');
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 const headers = {apikey: SUPABASE_SECRET_KEY, 'Content-Type': 'application/json', ...(SUPABASE_SECRET_KEY.startsWith('eyJ') ? {Authorization: `Bearer ${SUPABASE_SECRET_KEY}`} : {})};
 
