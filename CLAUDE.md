@@ -35,6 +35,14 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - **Vorrat**: Vorschläge kommen aus den Lebensmittel-Namen; „Daraus kannst du kochen“ vergleicht `parts` mit dem Vorrat (Namensgleichheit). Einkaufsliste und Vorrat gleichen Namen exakt ab, nicht per Wortanfang.
 - KI-Rezepte sind in der eigenständigen Version aus (kein `sample`).
 
+## Bedienung (möglichst wenige Klicks)
+- **Sofort speichern statt Formular:** `quickRun`, `quickLift`, `eatToday`, `choreDone`, `quickFood`, Routen speichern direkt und zeigen `toast(msg, {undo, edit})` mit „Rückgängig“ und „Ändern“. Löschen über `delUndo`. Neue Aktionen nach diesem Muster bauen.
+- **Plus-Knopf** (`.fab`, `shQuick`): Schnellmenü mit Kacheln (Wasser, Lauf, Kraft, Gegessen, Fahrt, Tanken), Routen, Lebensmitteln und Einkauf.
+- **Wischgesten:** `.item` mit `data-sr` (nach rechts, z. B. erledigt) und `data-sl` (nach links, löschen) plus `data-id` oder `data-v`; optional `data-srl`/`data-sll` als Beschriftung.
+- **Reiter:** Essen hat nur Ernährung und Kochplan. Vorrat ist Einkauf › Zuhause, Lebensmittel und Nährwerte liegen in den Einstellungen (`shFoods`).
+- **Heute** sortiert die Karten nach Tageszeit, Erledigtes rutscht nach unten. Sonntag und Montag erscheint der Wochenrückblick (`weekreview.last`).
+- In der Einkaufsliste bleibt der Bildschirm an (Wake Lock).
+
 ## Arbeitsweise
 - Änderungen testen: lokal `python3 -m http.server` und mit Playwright und einem Supabase-Stub (`window.supabase.createClient`) prüfen, Breite 390 px.
 - Commit auf `main` und pushen, GitHub Pages veröffentlicht automatisch unter https://nicolaigaucho.github.io/tagwerk/
