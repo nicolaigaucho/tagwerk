@@ -12,7 +12,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 | `js/store.js` | Datenschicht: Supabase, Offline-Cache, Push-Anmeldung, Import. Stellt `window.claude.use('db'|'user'|'downloads')` bereit, damit `app.js` unverändert aus der früheren claude.ai-Version läuft |
 | `js/supabase.js` | Supabase-Client 2.45.4 (UMD, eingecheckt, nicht anfassen) |
 | `config.js` | Öffentliche Werte: Supabase-URL, Publishable Key, VAPID Public Key |
-| `sw.js` | Service Worker: Offline-Cache und Push-Anzeige. **Bei jeder Änderung an App-Dateien `CACHE` hochzählen** (`tagwerk-vN`) |
+| `sw.js` | Service Worker: Offline-Cache und Push-Anzeige. **Bei jeder Änderung an App-Dateien die Version überall hochzählen:** `CACHE` in `sw.js` (`tagwerk-vN`), die `?v=N` an allen Dateien in `index.html` und `window.TAGWERK_VERSION` (wird in den Einstellungen angezeigt) |
 | `scripts/daily.mjs` + `.github/workflows/daily.yml` | Täglicher Push gegen 10 Uhr Berlin (GitHub Action, zwei Crons, Skript prüft Uhrzeit und sendet einmal pro Tag) |
 | `supabase/setup.sql` | Einmaliges Datenbank-Setup |
 

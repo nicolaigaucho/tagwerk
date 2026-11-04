@@ -686,7 +686,8 @@ function shSettings() {
     <div class="fld"><span class="lab">Daten</span>
       <button type="button" class="btn ghost" data-act="import">Daten importieren (JSON)</button>
       ${downloads ? '<button type="button" class="btn ghost" data-act="backup">Backup herunterladen (JSON)</button>' : ''}</div>
-    <button type="button" class="btn danger" data-act="logout">Abmelden</button>`, {submit:'Fertig', onSubmit: () => {}});
+    <button type="button" class="btn danger" data-act="logout">Abmelden</button>
+    <p class="muted small" style="margin:0;text-align:center">Tagwerk Version ${window.TAGWERK_VERSION || '?'}</p>`, {submit:'Fertig', onSubmit: () => {}});
 }
 async function backup() {
   const data = {exportiert: new Date().toISOString(), einstellungen:S.settings, wochenplan:S.plan, einkauf:S.shop, kraft:S.lifts, laeufe:S.runs, haushalt:S.chores, lebensmittel:S.foods, gerichte:S.dishes, kochplan:S.meals, vorrat:S.pantry, rezepte:S.recipes, fahrten:S.trips, tanken:S.fuel};
