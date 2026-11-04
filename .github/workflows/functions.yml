@@ -17,10 +17,10 @@ jobs:
           [ -n "$SUPABASE_ACCESS_TOKEN" ] || { echo "::error::Secret SUPABASE_ACCESS_TOKEN fehlt"; exit 1; }
           [ -n "$ANTHROPIC_API_KEY" ] || { echo "::error::Secret ANTHROPIC_API_KEY fehlt"; exit 1; }
       - uses: actions/checkout@v5
-      - uses: supabase/setup-cli@v1
+      - uses: actions/setup-node@v5
         with:
-          version: latest
+          node-version: 22
       - name: API-Schlüssel bei Supabase hinterlegen
-        run: supabase secrets set --yes --project-ref "$PROJECT_REF" ANTHROPIC_API_KEY="$(printf %s "$ANTHROPIC_API_KEY" | tr -d '[:space:]')"
+        run: npx --yes supabase@latest secrets set --yes --project-ref "$PROJECT_REF" ANTHROPIC_API_KEY="$(printf %s "$ANTHROPIC_API_KEY" | tr -d '[:space:]')"
       - name: Funktion veröffentlichen
-        run: supabase functions deploy food-photo --yes --project-ref "$PROJECT_REF" --use-api
+        run: npx --yes supabase@latest functions deploy food-photo --yes --project-ref "$PROJECT_REF" --use-api
