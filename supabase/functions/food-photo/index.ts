@@ -43,11 +43,11 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method" }, 405);
 
   let body: { image?: unknown; mediaType?: unknown; foods?: unknown; text?: unknown };
-  try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
+  try { body = await req.json(); } catch { return json({ error: "bad_request", detail: "Anfrage war kein gültiges JSON" }); }
   const image = typeof body.image === "string" ? body.image : "";
   const mediaType = TYPES.includes(String(body.mediaType)) ? String(body.mediaType) : "image/jpeg";
   const text = typeof body.text === "string" ? body.text.trim().slice(0, 300) : "";
-  if (!text && (image.length < 100 || image.length > 7_000_000)) return json({ error: "bad_image" }, 400);
+  if (!text && (image.length < 100 || image.length > 7_000_000)) return json({ error: "bad_image", detail: `Kein Text und kein gültiges Bild (Bildlänge ${image.length})` });
   const foods = Array.isArray(body.foods) ? body.foods.slice(0, 60) : [];
   const list = foods
     .map((f: Record<string, unknown>) => `- ID "${String(f.id)}": ${String(f.name)}, 1 Portion = ${String(f.plabel || `${f.portion} g`)} (${Number(f.portion) || 100} g)`)
@@ -100,12 +100,12 @@ So gehst du vor:
     } as never);
     // deno-lint-ignore no-explicit-any
     const r = res as any;
-    if (r.stop_reason === "refusal") return json({ error: "refusal" });
-    const text = (r.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
+    if (r.stop_reason === "refusal") return json({ error: "refusal", detail: "Claude hat die Anfrage abgelehnt" });
+    const out = (r.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
     try {
-      return json({ result: JSON.parse(text), usage: { in: r.usage?.input_tokens, out: r.usage?.output_tokens } });
+      return json({ result: JSON.parse(out), usage: { in: r.usage?.input_tokens, out: r.usage?.output_tokens } });
     } catch {
-      return json({ error: "parse" }, 502);
+      return json({ error: "parse", detail: `Antwort nicht lesbar (stop_reason ${r.stop_reason}): ${out.slice(0, 200)}` });
     }
   } catch (e) {
     // Originaltext von Claude mitschicken (enthält keine Geheimnisse), damit die App ihn anzeigen kann
@@ -120,3 +120,4 @@ So gehst du vor:
     return json({ error: "upstream", detail });
   }
 });
+// Hinweis: Fehler werden mit Status 200 und {error, detail} beantwortet, damit die App den Text anzeigen kann.

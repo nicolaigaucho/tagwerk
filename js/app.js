@@ -1130,9 +1130,9 @@ async function analyzeFood(file, text = '') {
   if (run !== photoRun || !$('#sheet-root').innerHTML) return;
   closeSheet();
   if (res.error) {
-    const msg = PHOTO_ERR[res.error] || 'Die Foto-Erkennung hat nicht geklappt.';
+    const msg = PHOTO_ERR[res.error] || (text ? 'Die Schätzung hat nicht geklappt.' : 'Die Foto-Erkennung hat nicht geklappt.');
     if (!res.detail) return toast(msg);
-    return sheet('Foto-Erkennung', `<p style="margin:0">${esc(msg)}</p><div class="fld"><span class="lab">Antwort von Claude</span><p class="note num" style="margin:0;user-select:text;-webkit-user-select:text">${esc(res.detail)}</p></div><p class="muted small" style="margin:0">Du kannst den Text markieren und kopieren.</p>`, {mod:'food', submit:'OK', onSubmit: () => {}});
+    return sheet(text ? 'Essen schätzen' : 'Foto-Erkennung', `<p style="margin:0">${esc(msg)}</p><div class="fld"><span class="lab">Antwort von Claude</span><p class="note num" style="margin:0;user-select:text;-webkit-user-select:text">${esc(res.detail)}</p></div><p class="muted small" style="margin:0">Du kannst den Text markieren und kopieren.</p>`, {mod:'food', submit:'OK', onSubmit: () => {}});
   }
   const r = res.result || {};
   const items = arr(r.items).filter(i => num(i.grams) > 0).map(i => {

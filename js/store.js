@@ -161,13 +161,16 @@
     try {
       const {data, error} = await sb.functions.invoke('food-photo', {body: payload});
       if (error) {
-        const st = error.context?.status;
+        const ctx = error.context, st = ctx?.status;
+        let body = '';
+        try { body = ctx && typeof ctx.text === 'function' ? await ctx.text() : ''; } catch {}
+        try { const j = JSON.parse(body); if (j && j.error) return {...j, detail: j.detail || `Fehlercode ${j.error} (HTTP ${st})`}; } catch {}
         if (st === 404) return {error: 'missing'};
-        if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') return {error: 'missing'};
-        return {error: 'upstream'};
+        if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') return {error: 'missing', detail: `${error.name}: ${error.message}`};
+        return {error: 'upstream', detail: `HTTP ${st || '?'}: ${(body || error.message || '').slice(0, 300)}`};
       }
-      return data || {error: 'upstream'};
-    } catch { return {error: 'upstream'}; }
+      return data || {error: 'upstream', detail: 'Leere Antwort'};
+    } catch (e) { return {error: 'upstream', detail: String(e?.message || e).slice(0, 300)}; }
   }
 
   window.TW = {analyzePhoto, email: () => email, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
