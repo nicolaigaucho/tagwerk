@@ -33,6 +33,7 @@ const ICON = {
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>',
   food:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10"/><path d="M17 21V3c-2.2 1.2-3.5 3.6-3.5 7v3H17"/></svg>',
   car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r=".8"/><circle cx="16.5" cy="13" r=".8"/></svg>',
+  scale:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="4"/><path d="M8.5 9.5a5 5 0 0 1 7 0M12 9.5l1.2-1.6"/></svg>',
   drop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></svg>',
   fuel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15M3 20h12M4 10h10M14 8l3 2v7a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
@@ -44,7 +45,7 @@ const TABS = [
 ];
 const TITLES = {heute:'Heute', shop:'Einkaufsliste', train:'Training', home:'Haushalt', food:'Essen', car:'Fahrtenbuch'};
 const SUBS = {
-  train:[['plan','Wochenplan'],['kraft','Kraft'],['lauf','Läufe']],
+  train:[['plan','Wochenplan'],['kraft','Kraft'],['lauf','Läufe'],['analyse','Analyse']],
   home:[['putz','Putzplan'],['waesche','Wäsche']],
   food:[['tag','Ernährung'],['koch','Kochplan']],
   shop:[['liste','Einkaufen'],['vorrat','Zuhause']],
@@ -62,7 +63,7 @@ const S = {
   tab: store.get('tab', 'heute'),
   sub: Object.assign({train:'plan', home:'putz', food:'tag', car:'fahrten', shop:'liste'}, store.get('sub', {})),
   daysRecent:{}, weekreview:{},
-  shop:[], lifts:[], runs:[], chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
+  shop:[], lifts:[], runs:[], weights:[], anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
   settings:{...DEF_SET}, plan:{}, shopstats:{counts:{}}, autoshop:{}, gotAutoshop:false,
   recipe:null, rState:'idle', rErr:'', rOpt:{meal:'Abendessen', time:'30', servings:'1', wish:''},
   day:{entries:[], water:0}, dayDate: today(), dayDirty:false,
@@ -122,7 +123,7 @@ async function boot() {
   db = d; base = `data/users/${id}`;
   const got = n => { S.got.add(n); if (S.got.size >= 3 && S.status !== 'ready') { S.status = 'ready'; clearTimeout(slow); } render(); scheduleSync(); };
   const onErr = e => { clearTimeout(slow); if (e?.code === 'revoked') S.status = 'offline'; toast(errMsg(e)); render(); };
-  ['shop','lifts','runs','chores','foods','trips','fuel','pantry','recipes','dishes'].forEach(n =>
+  ['shop','lifts','runs','chores','foods','trips','fuel','pantry','recipes','dishes','weights'].forEach(n =>
     col(n).onSnapshot(s => { S[n] = s.docs.map(x => ({id:x.id, ...x.data()})); got(n); }, onErr));
   col('meals').where('date', '>=', addDays(today(), -60)).onSnapshot(s => {
     const m = {}; s.docs.forEach(x => m[x.id] = x.data()); S.meals = m; got('meals'); }, onErr);
@@ -350,7 +351,7 @@ function vToday() {
     shop: card('shop', `Einkauf · ${open.length} offen`, shopBody, 'shop'),
     car: card('car', 'Auto · ' + new Date().toLocaleDateString('de-DE',{month:'long'}), `<div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><div class="k">Gefahren</div><div class="v">${fmt(kmMonth)} <small>km</small></div></div><div class="stat"><div class="k">Tankkosten</div><div class="v">${fmt(costMonth,2)} <small>€</small></div></div></div><div class="row-actions" style="margin-top:10px"><button class="btn sm ghost" data-act="trip-new">Fahrt eintragen</button><button class="btn sm ghost" data-act="fuel-new">Tanken</button></div>`, 'car')
   };
-  return `<div class="stack">${rw ? vReview(rw) : ''}${order.map(k => cards[k]).join('')}</div>`;
+  return `<div class="stack">${rw ? vReview(rw) : ''}${weighDue() ? weighCard() : ''}${order.map(k => cards[k]).join('')}</div>`;
 }
 function reviewWeek() {
   const t = today(), d = new Date().getDay();
@@ -396,6 +397,7 @@ function vShop() {
 /* --- Training --- */
 function vTrain() {
   const s = S.sub.train;
+  if (s === 'analyse') return vAnalysis();
   if (s === 'plan') {
     const twd = WD[new Date().getDay()], rp = runPlan();
     return `<div class="stack">
@@ -441,6 +443,120 @@ function vTrain() {
     : empty('Noch kein Lauf', 'Tippe auf „Lauf eintragen“. Distanz und Zeit stellst du per Buttons ein, die Pace rechnet die App.')}
   </div>`;
 }
+/* ---------- Trainingsanalyse ---------- */
+const e1rm = e => (e.kg || 0) * (1 + (e.reps || 0) / 30);
+const exValue = e => e.kg > 0 ? e1rm(e) : (e.reps || 0);
+const liftsAsc = () => [...S.lifts].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.ts || 0) - (b.ts || 0));
+function exNames() {
+  const n = []; Object.values(S.plan.templates || {}).forEach(t => arr(t).forEach(e => { if (!n.includes(e.name)) n.push(e.name); }));
+  S.lifts.forEach(l => arr(l.ex).forEach(e => { if (e.name && !n.includes(e.name)) n.push(e.name); }));
+  return n;
+}
+function exHistory(name) {
+  return liftsAsc().map(l => ({l, e: arr(l.ex).find(x => x.name === name)})).filter(x => x.e && (x.e.kg > 0 || x.e.reps > 0))
+    .map(({l, e}) => ({date: l.date, kg: e.kg || 0, reps: e.reps || 0, sets: e.sets || 0, v: exValue(e), bw: !(e.kg > 0)}));
+}
+function prList() {
+  const best = {}, out = [];
+  liftsAsc().forEach(l => arr(l.ex).forEach(e => { const v = exValue(e); if (!e.name || !v) return; if (best[e.name] != null && v > best[e.name] + 0.01) out.push({date: l.date, name: e.name, kg: e.kg, reps: e.reps, v}); if (best[e.name] == null || v > best[e.name]) best[e.name] = v; }));
+  return out.reverse();
+}
+function lineChart(pts, {unit = '', dec = 0, invert = false, fmtY} = {}) {
+  if (pts.length < 2) return `<p class="muted small" style="margin:0">Ab zwei Einträgen erscheint hier der Verlauf.</p>`;
+  const W = 320, H = 150, L = 36, R = 10, T = 14, B = 22;
+  const ys = pts.map(p => p.y); let lo = Math.min(...ys), hi = Math.max(...ys); if (hi - lo < 1e-9) { lo -= 1; hi += 1; } const padY = (hi - lo) * 0.15; lo -= padY; hi += padY;
+  const x = i => L + (W - L - R) * (pts.length === 1 ? 0.5 : i / (pts.length - 1));
+  const y = v => { const t = (v - lo) / (hi - lo); return T + (H - T - B) * (invert ? t : 1 - t); };
+  const f = fmtY || (v => fmt(v, dec));
+  let g = '';
+  [lo + (hi - lo) * 0.15, (lo + hi) / 2, hi - (hi - lo) * 0.15].forEach(v => { g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--line)" stroke-width="1"/><text x="${L-5}" y="${y(v)+3.5}" text-anchor="end" font-size="9.5" style="fill:var(--muted);font-family:var(--font)">${f(v)}</text>`; });
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.y).toFixed(1)}`).join('');
+  g += `<path d="${d}" fill="none" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" style="stroke:var(--accent)"/>`;
+  pts.forEach((p, i) => { const last = i === pts.length - 1; g += `<circle cx="${x(i)}" cy="${y(p.y)}" r="${last ? 4.5 : 2.5}" style="fill:${last ? 'var(--accent)' : 'var(--raise)'};stroke:var(--accent)" stroke-width="2"/>`; });
+  const lastP = pts[pts.length - 1];
+  g += `<text x="${Math.min(x(pts.length - 1), W - R)}" y="${y(lastP.y) - 9}" text-anchor="end" font-size="10.5" font-weight="700" style="fill:var(--fg);font-family:var(--font)">${f(lastP.y)}${unit ? ' ' + unit : ''}</text>`;
+  g += `<text x="${L}" y="${H-6}" font-size="9.5" style="fill:var(--muted);font-family:var(--font)">${esc(pts[0].x)}</text><text x="${W-R}" y="${H-6}" text-anchor="end" font-size="9.5" style="fill:var(--muted);font-family:var(--font)">${esc(lastP.x)}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">${g}</svg>`;
+}
+function barChart(bars, {dec = 0} = {}) {
+  const W = 320, H = 130, L = 8, R = 8, T = 16, B = 22, max = Math.max(1, ...bars.map(b => b.v)), bw = (W - L - R) / bars.length;
+  let g = '';
+  bars.forEach((b, i) => { const h = (H - T - B) * b.v / max, x = L + i * bw + bw * 0.18, w = bw * 0.64, last = i === bars.length - 1;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(0, h)}" rx="3" style="fill:var(--accent)" opacity="${last ? 1 : .5}"/>`;
+    if (b.v > 0) g += `<text x="${x + w/2}" y="${H - B - h - 4}" text-anchor="middle" font-size="9" font-weight="700" style="fill:var(--fg);font-family:var(--font)">${fmt(b.v, dec)}</text>`;
+    g += `<text x="${x + w/2}" y="${H - 7}" text-anchor="middle" font-size="9.5" style="fill:var(--muted);font-family:var(--font)">${esc(b.label)}</text>`; });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wochenwerte">${g}</svg>`;
+}
+const shortDate = s => parseISO(s).toLocaleDateString('de-DE', {day: 'numeric', month: 'numeric'});
+function vAnalysis() {
+  const t = today(), wk = mondayOf(t);
+  // Regelmäßigkeit: letzte 4 abgeschlossene Wochen plus aktuelle
+  const planL = ORDER.filter(k => S.plan[k]?.type === 'kraft').length, planR = ORDER.filter(k => S.plan[k]?.type === 'lauf').length;
+  const from = addDays(wk, -28), inRange = x => x.date >= from && x.date < wk;
+  const doneL = S.lifts.filter(inRange).length, doneR = S.runs.filter(inRange).length;
+  const pct = (a, b) => b ? Math.min(100, Math.round(a / b * 100)) : 0;
+  const cons = pct(doneL + doneR, (planL + planR) * 4);
+  // Volumen pro Woche
+  const weeks = []; for (let i = 7; i >= 0; i--) { const ws = addDays(wk, -7 * i); weeks.push({label: 'KW' + isoWeek(ws), v: Math.round(sum(S.lifts.filter(l => mondayOf(l.date) === ws), l => sum(arr(l.ex), e => (e.sets || 0) * (e.reps || 0) * (e.kg || 0))) / 100) / 10}); }
+  // Übung
+  const names = exNames(); const ex = names.includes(S.anaEx) ? S.anaEx : (names.find(n => exHistory(n).length) || names[0] || '');
+  const hist = ex ? exHistory(ex) : [], bw = hist.length && hist[hist.length - 1].bw;
+  const first = hist[0], last = hist[hist.length - 1];
+  const change = hist.length > 1 && first.v ? Math.round((last.v / first.v - 1) * 100) : 0;
+  const prs = prList().slice(0, 6);
+  // Laufen
+  const runs = [...S.runs].filter(r => r.km > 0 && r.sec > 0).sort((a, b) => a.date.localeCompare(b.date)), lastRuns = runs.slice(-12);
+  const bestBy = {}; runs.forEach(r => { const k = rotation().reduce((b, d) => Math.abs(d - r.km) < Math.abs(b - r.km) ? d : b, rotation()[0]); const p = r.sec / r.km; if (!bestBy[k] || p < bestBy[k].p) bestBy[k] = {p, r}; });
+  // Gewicht
+  const ws = [...S.weights].filter(w => w.kg > 0).sort((a, b) => a.date.localeCompare(b.date)), wl = ws[ws.length - 1];
+  const w4 = ws.filter(w => w.date >= addDays(t, -28)); let rate = null;
+  if (w4.length >= 2) { const a = w4[0], b = w4[w4.length - 1], days = diffDays(b.date, a.date); if (days >= 6) rate = (b.kg - a.kg) / days * 7; }
+  const rateNote = rate == null ? 'Wieg dich einmal pro Woche morgens, dann erscheint hier dein Trend.' : rate < 0.2 ? 'Etwas langsam für Muskelaufbau. Wenn das 2 Wochen so bleibt: etwa 200 kcal mehr am Tag.' : rate > 0.6 ? 'Etwas schnell. Wenn das 2 Wochen so bleibt: etwa 200 kcal weniger am Tag.' : 'Im Zielbereich. Weiter so!';
+  return `<div class="stack">
+    <section class="card"><div class="card-h"><h2>Letzte 4 Wochen</h2></div>
+      <div class="stats" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="stat"><div class="k">Kraft</div><div class="v">${doneL}<small>/${planL * 4}</small></div></div>
+        <div class="stat"><div class="k">Läufe</div><div class="v">${doneR}<small>/${planR * 4}</small></div></div>
+        <div class="stat"><div class="k">Plan erfüllt</div><div class="v">${cons}<small> %</small></div></div>
+      </div>
+      <div class="bar" style="margin-top:12px"><span style="width:${cons}%"></span></div></section>
+
+    <section class="card"><div class="card-h"><h2>Kraftverlauf</h2>${hist.length > 1 ? `<span class="pill ${change >= 0 ? 'acc' : 'bad'}">${change >= 0 ? '+' : ''}${change} %</span>` : ''}</div>
+      ${names.length ? `<div class="picks hscroll" style="margin-bottom:10px">${names.map(n => `<button class="pk" data-act="ana-ex" data-v="${esc(n)}" aria-pressed="${n === ex}">${esc(n)}</button>`).join('')}</div>` : ''}
+      ${lineChart(hist.map(h => ({x: shortDate(h.date), y: h.v})), {unit: bw ? 'Wdh.' : 'kg', dec: bw ? 0 : 1})}
+      <p class="muted small" style="margin:8px 0 0">${bw ? 'Ohne Zusatzgewicht zählt die Zahl der Wiederholungen.' : 'Geschätzte Maximalkraft für 1 Wiederholung (1RM) aus Gewicht und Wiederholungen.'}${last ? ` Zuletzt: ${last.sets}×${last.reps}${last.kg ? ` mit ${fmt(last.kg, 1)} kg` : ''}.` : ''}</p></section>
+
+    <section class="card"><div class="card-h"><h2>Bewegtes Gewicht pro Woche</h2><span class="muted small">Tonnen</span></div>${barChart(weeks, {dec: 1})}</section>
+
+    <section class="card"><div class="card-h"><h2>Neue Bestleistungen</h2></div>
+      ${prs.length ? `<div class="list">${prs.map(r => `<div class="item"><div class="main"><div class="t">🏆 ${esc(r.name)}</div><div class="s">${fDate(r.date)}</div></div><div class="r num">${r.kg ? `${fmt(r.kg, 1)} kg × ${r.reps}` : `${r.reps} Wdh.`}</div></div>`).join('')}</div>` : '<p class="muted small" style="margin:0">Sobald du eine Übung steigerst, erscheint sie hier.</p>'}</section>
+
+    <section class="card"><div class="card-h"><h2>Lauf-Pace</h2><span class="muted small">min/km, oben = schneller</span></div>
+      ${lineChart(lastRuns.map(r => ({x: shortDate(r.date), y: r.sec / r.km})), {invert: true, fmtY: v => fDur(v)})}
+      ${Object.keys(bestBy).length ? `<div class="muted small" style="margin:10px 0 6px">Bestzeiten pro km</div><div class="stats" style="grid-template-columns:repeat(${Object.keys(bestBy).length},1fr)">${Object.entries(bestBy).sort((a, b) => a[0] - b[0]).map(([k, b]) => `<div class="stat"><div class="k">${fmt(k)} km</div><div class="v">${fDur(b.p)}</div></div>`).join('')}</div>` : ''}</section>
+
+    <section class="card"><div class="card-h"><h2>Körpergewicht</h2><button class="link" data-act="weight-new">Eintragen</button></div>
+      ${wl ? `<div class="stats" style="grid-template-columns:1fr 1fr;margin-bottom:10px"><div class="stat"><div class="k">Aktuell</div><div class="v">${fmt(wl.kg, 1)}<small> kg</small></div></div><div class="stat"><div class="k">Trend pro Woche</div><div class="v">${rate == null ? '–' : (rate >= 0 ? '+' : '') + fmt(rate, 2)}<small> kg</small></div></div></div>` : ''}
+      ${lineChart(ws.slice(-16).map(w => ({x: shortDate(w.date), y: w.kg})), {unit: 'kg', dec: 1})}
+      <p class="muted small" style="margin:8px 0 0">Ziel Muskelaufbau: +0,25 bis 0,5 kg pro Woche. ${rateNote}</p></section>
+  </div>`;
+}
+const lastWeight = () => [...S.weights].filter(w => w.kg > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
+const weighDue = () => { const w = lastWeight(); return !w || diffDays(today(), w.date) >= 7; };
+function weighCard() {
+  const w = lastWeight();
+  return `<section class="card"><div class="card-h"><span class="tag"><span class="ti" style="--m:var(--train)">${ICON.scale}</span>Zeit zum Wiegen</span></div>
+    <div class="hero"><div style="flex:1;min-width:0"><div class="muted small">${w ? `Zuletzt ${fmt(w.kg, 1)} kg am ${fDate(w.date)}` : 'Noch kein Gewicht eingetragen'}</div><div class="small">Einmal pro Woche, morgens nach dem Aufstehen.</div></div><button class="btn acc" style="--accent:var(--train)" data-act="weight-new">Eintragen</button></div></section>`;
+}
+function shWeight() {
+  const last = [...S.weights].sort((a, b) => b.date.localeCompare(a.date))[0];
+  sheet('Körpergewicht', `${datePicks(today())}${stepper('kg', 'Gewicht', last?.kg || 87.5, {steps: [0.1, 1], dec: 1, unit: 'kg'})}<p class="muted small" style="margin:0">Am besten morgens nach dem Aufstehen, vor dem Frühstück.</p>`,
+  {mod: 'train', onSubmit: f => { const kg = num(f.kg), d = f.date || today(); if (!(kg > 30)) { toast('Bitte ein gültiges Gewicht einstellen.'); return false; }
+    if (!needDb()) return false; const prev = S.weights.find(w => w.date === d);
+    save(col('weights').doc(d).set({date: d, kg, ts: Date.now()}));
+    toast(`${fmt(kg, 1)} kg eingetragen`, {undo: () => prev ? save(col('weights').doc(d).set(prev)) : save(col('weights').doc(d).delete())}); }});
+}
+
 function weekChart(weeks) {
   const W = 320, H = 130, L = 26, B = 22, T = 14, R = 4;
   const max = Math.max(5, ...weeks.map(w => w.km)); const step = max > 40 ? 20 : max > 20 ? 10 : 5; const top = Math.ceil(max/step)*step;
@@ -1053,7 +1169,6 @@ function shQuick() {
   const tile = (act, v, icon, mod, label, sub, done) => `<button type="button" class="qtile ${done ? 'is-done' : ''}" data-act="${act}" ${v != null ? `data-v="${esc(v)}"` : ''}><span class="ti" style="--m:var(--${mod})">${ICON[icon]}</span><b>${label}</b><small>${done ? 'heute erledigt' : sub}</small></button>`;
   const sug = shopSuggest(S.shop.map(i => i.name)).slice(0, 12);
   sheet('Schnell eintragen', `
-    <button type="button" class="btn acc wide" style="--accent:var(--food)" data-act="photo">📷 Essen fotografieren</button>
     <div class="qgrid">
       ${tile('q-water', 500, 'drop', 'home', '+500 ml', `Wasser · ${fmt(S.day.water)} ml`)}
       ${tile('q-run', km, 'train', 'train', `${fmt(km)} km`, 'Lauf erledigt', ran)}
@@ -1061,6 +1176,9 @@ function shQuick() {
       ${df ? tile('q-eat', null, 'food', 'food', 'Gegessen', esc(df.dish.name), ate) : ''}
       ${tile('q-trip', null, 'car', 'car', 'Fahrt', 'Strecke wählen')}
       ${tile('q-fuel', null, 'fuel', 'car', 'Tanken', 'Liter und Preis')}
+      ${tile('photo', null, 'food', 'food', 'Foto', 'Essen erkennen')}
+      ${tile('q-weight', null, 'scale', 'train', 'Gewicht', lastWeight() ? `zuletzt ${fmt(lastWeight().kg, 1)} kg` : 'eintragen')}
+      ${tile('q-shop', null, 'shop', 'shop', 'Einkauf', `${S.shop.filter(i => !i.done).length} offen`)}
     </div>
     ${routes.length ? `<div class="fld"><span class="lab">Häufige Fahrten · 1 Tipp</span><div class="qchips">${routes.map((r, i) => `<button type="button" class="qc" data-act="route-quick" data-v="${i}">${esc(r.label)}<small>${fmt(r.dist)} km</small></button>`).join('')}</div></div>` : ''}
     <div class="fld"><span class="lab">Gegessen · 1 Portion</span>${quickFoods(17)}</div>
@@ -1147,6 +1265,10 @@ const ACT = {
   'review-done': v => { needDb() && save(one('weekreview').set({last: v})); toast('Woche abgeschlossen. Auf eine gute neue Woche!'); },
   'toast-undo': () => { const f = toastCtx?.undo; hideToast(); f?.(); },
   'toast-edit': () => { const f = toastCtx?.edit; hideToast(); f?.(); },
+  'ana-ex': v => { S.anaEx = v; store.set('anaEx', v); render(); },
+  'weight-new': () => shWeight(),
+  'q-weight': () => shWeight(),
+  'q-shop': () => { closeSheet(); ACT.tab('shop'); },
   'run-quick': v => quickRun(num(v)), 'lift-quick': v => quickLift(v), 'eat-today': () => eatToday(),
   foods: () => shFoods(),
   'food-add': () => shFoodAdd(), goals: () => shGoals(),

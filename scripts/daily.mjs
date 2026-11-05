@@ -79,6 +79,10 @@ for (const [uid, docs] of Object.entries(users)) {
   if (!auto.off && dd >= 0 && dd % 2 === 0 && dt) { const dm = dishFor(addDays(today, 1)); lines.push(`🛒 Einkaufstag: ${dt.name}${dm ? ' und ' + dm.name : ''}`); }
   else { const open = col('shop').filter(i => !i.done).length; if (open) lines.push(`🛒 ${open} Sachen auf der Einkaufsliste`); }
 
+  // 6 Wiegen: letzter Eintrag 7 Tage oder länger her
+  const lastW = col('weights').filter(w => w.kg > 0).map(w => w.date).sort().pop();
+  if (!lastW || diff(today, lastW) >= 7) lines.push('⚖️ Heute wiegen (morgens, vor dem Frühstück)');
+
   const payload = JSON.stringify({title: 'Guten Morgen! Heute:', body: lines.join('\n') || 'Heute steht nichts an. Genieß den Tag!'});
   let sent = 0;
   for (const s of subs) {

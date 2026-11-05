@@ -37,6 +37,10 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - Training: Oberkörper 3x (A Brust/Trizeps, B Rücken/Bizeps, C Schultern/Arme), bewusst ohne Beintraining (Wunsch des Nutzers). Läufe 3x mit Rotation 5, 6, 8 km.
 - **Doppelte Progression** (`nextTarget`, `liftRows`): Vorlagen in `plan.templates[titel]` mit `min`, `max` (Wdh.-Bereich), `step` (kg), `hint`. Vorschlag = letzte Einheit +1 Wdh., am oberen Ende +`step` kg und zurück auf `min`. „Geschafft“ speichert den Vorschlag direkt.
 
+## Trainingsanalyse und Gewicht
+- Reiter **Training › Analyse** (`vAnalysis`): Planerfüllung der letzten 4 Wochen, Kraftverlauf je Übung (geschätztes 1RM nach Epley, ohne Gewicht: Wdh.), bewegtes Gewicht pro Woche, neue Bestleistungen (`prList`), Lauf-Pace und Bestzeiten je Rotationsdistanz, Körpergewicht mit Wochentrend. Diagramme: `lineChart`, `barChart`.
+- **Körpergewicht** in `weights/items/<datum>` (`{date, kg}`), Eintrag über `shWeight` (Analyse, Plus-Menü, Karte auf Heute). Erinnerung, wenn das letzte Wiegen 7 Tage oder länger her ist (`weighDue`), ebenso als Zeile im 10-Uhr-Push (`daily.mjs`).
+
 ## Essen-Bereich
 - **Baukasten** (`shCombo`): Mahlzeit aus Lebensmitteln per Portionen (½-Schritte) zusammenstellen, als gegessen eintragen oder als Gericht in die Rotation speichern. Gerichte mit `parts` werden ebenfalls im Baukasten bearbeitet.
 - **Vorrat**: Vorschläge kommen aus den Lebensmittel-Namen; „Daraus kannst du kochen“ vergleicht `parts` mit dem Vorrat (Namensgleichheit). Einkaufsliste und Vorrat gleichen Namen exakt ab, nicht per Wortanfang.

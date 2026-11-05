@@ -317,3 +317,7 @@ body[data-mod="shop"] .item .t{font-size:18px}
 .review{background:linear-gradient(180deg,color-mix(in srgb,var(--today) 8%,#fff),#fff)}
 .toast{width:min(calc(100% - 32px),480px);justify-content:space-between}
 .sheet .qc{background:#fff}
+
+.picks.hscroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:0 16px 2px;-webkit-overflow-scrolling:touch}
+.picks.hscroll::-webkit-scrollbar{display:none}
+.picks.hscroll .pk{flex:none}
