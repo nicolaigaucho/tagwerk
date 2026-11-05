@@ -329,3 +329,6 @@ body[data-mod="shop"] .item .t{font-size:18px}
 .setchip span{color:var(--muted);margin-left:4px}
 .wo-big{padding:16px 18px;font-size:18px}
 .wo-head .bar{height:8px}
+
+.swipe-bg.l.edit{background:color-mix(in srgb,var(--home) 55%,#fff)}.swipe-bg.l.edit.go{background:var(--home)}
+.swipe-bg.r.swap{background:color-mix(in srgb,var(--train) 55%,#fff)}.swipe-bg.r.swap.go{background:var(--train)}

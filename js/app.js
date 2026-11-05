@@ -454,10 +454,10 @@ function vStrength() {
       <div class="stat"><div class="k">Rekorde 30 Tage</div><div class="v">${prs30}</div></div>
       <div class="stat"><div class="k">Ø Dauer</div><div class="v">${avgDur ? Math.round(avgDur / 60000) : 0} <small>min</small></div></div>
     </div>
-    <section class="card"><div class="card-h"><h2>Deine Trainingspläne</h2></div><div class="list">${titles.map(title => {
+    <section class="card"><div class="card-h"><h2>Deine Trainingspläne</h2><button class="link" data-act="plan-edit" data-v="${esc(titles[0] || '')}">Bearbeiten</button></div><div class="list">${titles.map(title => {
       const last = lifts.find(l => l.title === title), n = liftRows(title).length, isToday = title === todayTitle;
-      return `<div class="item"><span class="daylabel" style="${isToday ? 'background:var(--accent);color:#fff' : ''}">${esc(planLetter(title))}</span><div class="main"><div class="t">${esc(title.replace(/ · .*/, ''))}${isToday ? ' <span class="pill acc">heute</span>' : ''}</div><div class="s">${esc(planFocus(title))} · ${n} Übungen${last ? ` · zuletzt ${fDate(last.date)}` : ''}</div></div><button class="btn sm ${isToday ? 'acc' : 'ghost'}" data-act="wo-start" data-v="${esc(title)}">▶ Start</button></div>`; }).join('')}</div>
-      <p class="muted small" style="margin:10px 0 0">Ohne Live-Eintrag? <button class="link" style="font-size:13px" data-act="lift-quick">✓ Heutiges Training als geschafft eintragen</button></p></section>
+      return `<div class="item" data-sr="wo-start" data-srl="Starten" data-sl="plan-edit" data-sll="Bearbeiten" data-slc="edit" data-v="${esc(title)}"><span class="daylabel" style="${isToday ? 'background:var(--accent);color:#fff' : ''}">${esc(planLetter(title))}</span><div class="main"><div class="t">${esc(title.replace(/ · .*/, ''))}${isToday ? ' <span class="pill acc">heute</span>' : ''}</div><div class="s">${esc(planFocus(title))} · ${n} Übungen${last ? ` · zuletzt ${fDate(last.date)}` : ''}</div></div><button class="btn sm ${isToday ? 'acc' : 'ghost'}" data-act="wo-start" data-v="${esc(title)}">▶ Start</button></div>`; }).join('')}</div>
+      <p class="muted small" style="margin:10px 0 0">Wischen: → starten · ← bearbeiten. Ohne Live-Eintrag? <button class="link" style="font-size:13px" data-act="lift-quick">✓ Heutiges Training als geschafft eintragen</button></p></section>
     ${names.length ? `<section class="card"><div class="card-h"><h2>Übungen</h2><span class="muted small">zuletzt · Trend 4 Wochen</span></div><div class="list">${names.map(n => {
       const h = exHistory(n), l = h[h.length - 1], old = [...h].reverse().find(x => x.date <= addDays(t, -28)) || h[0], ch = old.v ? Math.round((l.v / old.v - 1) * 100) : 0;
       return `<div class="item"><button class="main" data-act="ex-detail" data-v="${esc(n)}"><div class="t">${esc(n)}</div><div class="s">${l.sets}×${l.reps}${l.kg ? ` · ${fmt(l.kg, 1)} kg` : ''} · ${fDate(l.date)}</div></button><span class="pill ${ch > 0 ? 'acc' : ch < 0 ? 'bad' : ''}">${ch > 0 ? '▲' : ch < 0 ? '▼' : '■'} ${Math.abs(ch)} %</span><span class="muted">›</span></div>`; }).join('')}</div></section>` : ''}
@@ -475,6 +475,76 @@ function shExercise(name) {
     <div class="card" style="padding:12px 14px">${lineChart(h.map(x => ({x: shortDate(x.date), y: x.v})), {unit: bw ? 'Wdh.' : 'kg', dec: bw ? 0 : 1})}</div>
     <p class="muted small" style="margin:0">${bw ? 'Ohne Zusatzgewicht zählen die Wiederholungen.' : 'Geschätzte Maximalkraft (1RM) aus Gewicht und Wiederholungen.'}${tpl.hint ? ' ' + esc(tpl.hint) + '.' : ''}</p>
     ${sessions.length ? `<div class="card" style="padding:2px 14px"><div class="list">${sessions.map(l => { const e = l.ex.find(x => x.name === name); return `<div class="item"><div class="main"><div class="t">${fDate(l.date)}</div><div class="s">${esc(exLogText(e))}</div></div></div>`; }).join('')}</div></div>` : ''}`, {mod: 'train', submit: ''});
+}
+
+/* Übungskatalog und Plan-Editor */
+const EX_CAT = {
+  'Brust': [['Bankdrücken',6,10,2.5,70,'Langhantel'],['Kurzhantel-Bankdrücken',8,12,2,28,'kg je Hand'],['Schrägbankdrücken Kurzhantel',8,12,2,26,'kg je Hand'],['Schrägbankdrücken Langhantel',6,10,2.5,60,'Langhantel'],['Brustpresse',8,12,2.5,60,'Maschine'],['Butterfly',10,15,2.5,40,'Maschine oder Kabel'],['Kabelzug-Crossover',10,15,2.5,15,'kg je Seite'],['Liegestütze',10,25,2.5,0,'kg = Zusatzgewicht']],
+  'Trizeps': [['Trizepsdrücken am Kabel',10,15,2.5,30,''],['Überkopf-Trizeps am Kabel',10,15,2.5,20,''],['French Press',8,12,2.5,30,'SZ-Stange'],['Enges Bankdrücken',6,10,2.5,55,'Langhantel'],['Dips',8,12,2.5,0,'kg = Zusatzgewicht'],['Kickbacks',10,15,1,8,'kg je Hand']],
+  'Rücken': [['Klimmzüge',6,10,2.5,0,'kg = Zusatzgewicht'],['Latziehen eng',8,12,2.5,60,''],['Latziehen breit',8,12,2.5,60,''],['Langhantelrudern',6,10,2.5,65,'Langhantel'],['Kurzhantelrudern einarmig',8,12,2,30,'kg je Hand'],['Kabelrudern sitzend',8,12,2.5,60,''],['T-Bar-Rudern',6,10,2.5,40,''],['Face Pulls',12,20,2.5,22.5,'Kabel']],
+  'Bizeps': [['Bizepscurls',8,12,2,14,'kg je Hand'],['Hammercurls',8,12,2,16,'kg je Hand'],['SZ-Curls',8,12,2.5,30,'SZ-Stange'],['Kabelcurls',10,15,2.5,20,''],['Schrägbank-Curls',8,12,2,12,'kg je Hand'],['Konzentrationscurls',10,15,1,12,'kg je Hand']],
+  'Schultern': [['Schulterdrücken Kurzhantel',6,10,2,24,'kg je Hand'],['Schulterdrücken Langhantel',6,10,2.5,45,'Langhantel'],['Arnold Press',8,12,2,20,'kg je Hand'],['Seitheben',12,20,2,10,'kg je Hand'],['Seitheben am Kabel',12,20,1.25,7.5,'kg je Seite'],['Reverse Flys',12,20,2,8,'kg je Hand'],['Frontheben',10,15,2,10,'kg je Hand']]
+};
+const catEntry = n => { for (const [g, l] of Object.entries(EX_CAT)) { const e = l.find(x => x[0] === n); if (e) return {group: g, name: e[0], min: e[1], max: e[2], step: e[3], kg: e[4], hint: e[5]}; } return null; };
+const planTpl = title => arr(S.plan.templates?.[title]).map(e => ({...e}));
+function savePlanTpl(title, list, msg, prev) {
+  if (!needDb()) return;
+  const plan = {...S.plan, templates: {...(S.plan.templates || {}), [title]: list}};
+  S.plan = plan; save(one('plan').set(plan));
+  if (msg) toast(msg, prev ? {undo: () => { savePlanTpl(title, prev); if (sheetCtx) shPlanEdit(title); }} : {});
+}
+function shPlanEdit(title) {
+  const titles = liftTitles(); if (!title) title = titles[0]; if (!title) return toast('Noch kein Trainingsplan vorhanden.');
+  const list = planTpl(title);
+  sheet('Plan bearbeiten', `
+    ${titles.length > 1 ? `<div class="picks hscroll">${titles.map(t => `<button type="button" class="pk" data-act="plan-edit" data-v="${esc(t)}" aria-pressed="${t === title}">${esc(t.replace(/ · .*/, ''))}</button>`).join('')}</div>` : ''}
+    <div><div style="font-size:20px;font-weight:700">${esc(title.replace(/ · .*/, ''))}</div><div class="muted small">${esc(planFocus(title))} · ${list.length} Übungen</div></div>
+    <p class="muted small" style="margin:0">→ nach rechts wischen: tauschen · ← nach links: entfernen · antippen: Sätze und Gewicht</p>
+    <div class="card" style="padding:2px 14px"><div class="list">${list.map((e, i) => `<div class="item" data-sr="pe-swap" data-srl="Tauschen" data-src="swap" data-sl="pe-del" data-sll="Entfernen" data-v="${i}" data-t="${esc(title)}"><span class="num-badge">${i + 1}</span><button type="button" class="main" data-act="pe-edit" data-v="${i}" data-t="${esc(title)}"><div class="t">${esc(e.name)}</div><div class="s">${e.sets || 3} Sätze · ${e.min || 8} bis ${e.max || 12} Wdh.${e.kg ? ` · Start ${fmt(e.kg, 1)} kg` : ''}${e.hint ? ' · ' + esc(e.hint) : ''}</div></button>${i ? `<button type="button" class="x" style="color:var(--today);font-size:18px" data-act="pe-up" data-v="${i}" data-t="${esc(title)}" aria-label="${esc(e.name)} nach oben">↑</button>` : ''}</div>`).join('')}</div></div>
+    <button type="button" class="btn ghost" data-act="pe-add" data-t="${esc(title)}">+ Übung hinzufügen</button>`, {mod: 'train', submit: 'Fertig', onSubmit: () => {}});
+}
+function shExPick(title, idx, mode = 'plan') {
+  const cur = mode === 'workout' ? S.workout?.ex[idx] : idx != null ? planTpl(title)[idx] : null;
+  const group = cur ? catEntry(cur.name)?.group : null;
+  const groups = Object.keys(EX_CAT).sort((a, b) => (b === group) - (a === group));
+  const taken = new Set((mode === 'workout' ? arr(S.workout?.ex) : planTpl(title)).map(e => e.name));
+  sheet(cur ? `${cur.name} tauschen` : 'Übung hinzufügen', `
+    ${mode === 'workout' ? '<p class="muted small" style="margin:0">Gilt nur für dieses Training. Dein Plan bleibt unverändert.</p>' : ''}
+    ${groups.map(g => `<div class="fld"><span class="lab">${g}${g === group ? ' · passend' : ''}</span><div class="picks">${EX_CAT[g].filter(e => !taken.has(e[0])).map(e => `<button type="button" class="pk" data-act="pe-pick" data-v="${esc(e[0])}" data-t="${esc(title || '')}" data-i="${idx ?? ''}" data-m="${mode}">${esc(e[0])}</button>`).join('')}</div></div>`).join('')}
+    <div class="fld"><span class="lab">Eigene Übung</span><div class="addbar"><input id="pe-own" placeholder="z. B. Pullover am Kabel" autocomplete="off"><button type="button" class="btn acc" data-act="pe-pick-own" data-t="${esc(title || '')}" data-i="${idx ?? ''}" data-m="${mode}">Übernehmen</button></div></div>`,
+  {mod: 'train', submit: ''});
+}
+function pickExercise(name, title, idx, mode) {
+  name = name.trim(); if (!name) return;
+  const c = catEntry(name) || {min: 8, max: 12, step: 2.5, kg: 0, hint: ''};
+  if (mode === 'workout') {
+    const w = S.workout; if (!w) return; const old = w.ex[idx];
+    const last = exHistory(name).pop();
+    w.ex[idx] = {name, sets: old.sets, reps: last ? last.reps : c.min, kg: last ? last.kg : c.kg, min: c.min, max: c.max, step: c.step, hint: c.hint, up: '', prev: last ? {sets: last.sets, reps: last.reps, kg: last.kg} : null, log: []};
+    w.cur = idx; S.wDraft = null; woSave(); closeSheet(); render(); scrollTo(0, 0);
+    return toast(`Heute ${name} statt ${old.name}`);
+  }
+  const list = planTpl(title), prev = planTpl(title);
+  const entry = {name, sets: idx !== '' && idx != null ? list[idx].sets || 3 : 3, reps: c.min, kg: c.kg, min: c.min, max: c.max, step: c.step, ...(c.hint ? {hint: c.hint} : {})};
+  if (idx !== '' && idx != null) { const old = list[idx].name; list[idx] = entry; savePlanTpl(title, list, `${old} → ${name}`, prev); }
+  else { list.push(entry); savePlanTpl(title, list, `${name} hinzugefügt`, prev); }
+  shPlanEdit(title);
+}
+function shExEdit(title, idx) {
+  const list = planTpl(title), e = list[idx]; if (!e) return;
+  sheet(e.name, `
+    ${stepper('pe_sets', 'Sätze', e.sets || 3, {steps: [1], min: 1})}
+    ${stepper('pe_min', 'Wdh. von', e.min || 8, {steps: [1], min: 1})}
+    ${stepper('pe_max', 'Wdh. bis', e.max || 12, {steps: [1], min: 1})}
+    ${stepper('pe_kg', 'Startgewicht', e.kg || 0, {steps: [e.step || 2.5], dec: 1, unit: 'kg'})}
+    ${fld('Steigerung pro Schritt', picks('pe_step', [['1','1 kg'],['1.25','1,25 kg'],['2','2 kg'],['2.5','2,5 kg'],['5','5 kg']], String(e.step || 2.5)))}
+    <p class="muted small" style="margin:0">Das Startgewicht gilt nur, solange du die Übung noch nie trainiert hast. Danach steigert die App von deinem letzten Training aus.</p>`,
+  {mod: 'train', onSubmit: f => {
+    const mn = Math.round(num(f.pe_min)), mx = Math.round(num(f.pe_max));
+    if (mx < mn) { toast('„Wdh. bis“ muss mindestens so groß sein wie „Wdh. von“.'); return false; }
+    const prev = planTpl(title); list[idx] = {...e, sets: Math.round(num(f.pe_sets)), min: mn, max: mx, reps: Math.min(Math.max(e.reps || mn, mn), mx), kg: num(f.pe_kg), step: num(f.pe_step) || 2.5};
+    savePlanTpl(title, list, `${e.name} angepasst`, prev); setTimeout(() => shPlanEdit(title), 50);
+  }});
 }
 
 /* Live-Training */
@@ -516,7 +586,7 @@ function vWorkout() {
       ${allDone ? (nextIdx >= 0 ? `<button class="btn wide" data-act="wo-go" data-v="${nextIdx}">Weiter: ${esc(w.ex[nextIdx].name)} ›</button>` : `<button class="btn wide" data-act="wo-finish">Training abschließen</button>`) : ''}
     </section>
 
-    <section class="card"><div class="card-h"><h2>Alle Übungen</h2></div><div class="list">${w.ex.map((x, i) => `<div class="item ${i === w.cur ? 'today' : ''}"><span class="num-badge" style="${x.log.length >= x.sets ? 'background:var(--shop);color:#fff' : i === w.cur ? 'background:var(--train);color:#fff' : ''}">${x.log.length >= x.sets ? '✓' : i + 1}</span><button class="main" data-act="wo-go" data-v="${i}"><div class="t">${esc(x.name)}</div><div class="s">${x.log.length}/${x.sets} Sätze · Ziel ${x.reps} × ${fmt(x.kg, 1)} kg</div></button></div>`).join('')}</div></section>
+    <section class="card"><div class="card-h"><h2>Alle Übungen</h2><span class="muted small">→ für heute tauschen</span></div><div class="list">${w.ex.map((x, i) => `<div class="item ${i === w.cur ? 'today' : ''}" ${x.log.length ? '' : `data-sr="wo-swap" data-srl="Tauschen" data-src="swap" data-v="${i}"`}><span class="num-badge" style="${x.log.length >= x.sets ? 'background:var(--shop);color:#fff' : i === w.cur ? 'background:var(--train);color:#fff' : ''}">${x.log.length >= x.sets ? '✓' : i + 1}</span><button class="main" data-act="wo-go" data-v="${i}"><div class="t">${esc(x.name)}</div><div class="s">${x.log.length}/${x.sets} Sätze · Ziel ${x.reps} × ${fmt(x.kg, 1)} kg</div></button></div>`).join('')}</div></section>
 
     <div class="row-actions"><button class="btn acc" style="flex:1;--accent:var(--shop)" data-act="wo-finish">Training abschließen</button><button class="btn danger" data-act="wo-cancel">Abbrechen</button></div>
   </div>`;
@@ -1325,7 +1395,7 @@ document.addEventListener('touchmove', e => {
   }
   let d = dx; if (d > 0 && !sw.it.dataset.sr) d = 0; if (d < 0 && !sw.it.dataset.sl) d = 0;
   sw.dx = d; sw.it.style.transform = `translateX(${d}px)`;
-  sw.bg.className = 'swipe-bg ' + (d > 0 ? 'r' : 'l') + (Math.abs(d) > 80 ? ' go' : '');
+  sw.bg.className = 'swipe-bg ' + (d > 0 ? 'r ' + (sw.it.dataset.src || '') : 'l ' + (sw.it.dataset.slc || '')) + (Math.abs(d) > 80 ? ' go' : '');
 }, {passive: true});
 document.addEventListener('touchend', () => {
   if (!sw) return; const s0 = sw; sw = null; if (!s0.on) return;
@@ -1401,6 +1471,15 @@ const ACT = {
   'wo-finish': () => woFinish(),
   'wo-cancel': (v, el) => { if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'Wirklich verwerfen?'; return; } S.workout = null; S.wDraft = null; woSave(); clearInterval(woTick); render(); toast('Training verworfen'); },
   'ex-detail': v => shExercise(v),
+  'plan-edit': v => shPlanEdit(v),
+  'pe-swap': (v, el) => shExPick(el.dataset.t, Number(v)),
+  'pe-add': (v, el) => shExPick(el.dataset.t, null),
+  'pe-edit': (v, el) => shExEdit(el.dataset.t, Number(v)),
+  'pe-del': (v, el) => { const t = el.dataset.t, list = planTpl(t), prev = planTpl(t), i = Number(v); if (list.length <= 1) return toast('Ein Plan braucht mindestens eine Übung.'); const [x] = list.splice(i, 1); savePlanTpl(t, list, `${x.name} entfernt`, prev); shPlanEdit(t); },
+  'pe-up': (v, el) => { const t = el.dataset.t, list = planTpl(t), i = Number(v); [list[i - 1], list[i]] = [list[i], list[i - 1]]; savePlanTpl(t, list); shPlanEdit(t); },
+  'pe-pick': (v, el) => pickExercise(v, el.dataset.t, el.dataset.m === 'workout' ? Number(el.dataset.i) : (el.dataset.i === '' ? null : Number(el.dataset.i)), el.dataset.m),
+  'pe-pick-own': (v, el) => pickExercise($('#pe-own')?.value || '', el.dataset.t, el.dataset.m === 'workout' ? Number(el.dataset.i) : (el.dataset.i === '' ? null : Number(el.dataset.i)), el.dataset.m),
+  'wo-swap': v => shExPick(S.workout?.title, Number(v), 'workout'),
   'ana-ex': v => { S.anaEx = v; store.set('anaEx', v); render(); },
   'weight-new': () => shWeight(),
   'q-weight': () => shWeight(),

@@ -40,6 +40,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 ## Kraft-Reiter und Live-Training
 - **Übersicht** (`vStrength`): Kennzahlen (Woche, Volumen, Rekorde 30 Tage, Ø Dauer), die Trainingspläne aus `plan.templates` mit „▶ Start“, Übungsliste mit Trend (Tipp öffnet `shExercise`: Verlauf, Bestwert, letzte Einheiten mit allen Sätzen), Volumen-Diagramm, Verlauf.
 - **Live-Training** (`woStart`, `vWorkout`, `woFinish`): laufendes Training im Dokument `workout` (übersteht App-Neustart), je Übung Ziel aus `liftRows` und Satz-Eintrag mit Steppern, Pausen- und Gesamtuhr (`woTicker`). Beim Abschließen wird eine Einheit in `lifts` gespeichert, jede Übung mit `log: [{reps, kg, t}]` sowie `sets`/`reps`/`kg` als Zusammenfassung (Höchstgewicht, geringste Wdh. bei diesem Gewicht, damit die Progression nur bei geschafften Sätzen steigert), dazu `start`, `end`, `dur`.
+- **Plan-Editor** (`shPlanEdit`, `shExPick`, `shExEdit`, `pickExercise`, Katalog `EX_CAT` nach Muskelgruppen): auf der Kraft-Übersicht Plan-Zeile ← wischen = bearbeiten, → = starten. Im Editor je Übung → tauschen, ← entfernen, antippen = Sätze/Wdh.-Bereich/Startgewicht/Schritt, ↑ umsortieren, hinzufügen. Gespeichert in `plan.templates[titel]` (`savePlanTpl`, mit Rückgängig). Im Live-Training → wischen tauscht eine Übung nur für dieses Training.
 - `liftRows(titel)` nimmt immer alle Übungen der Vorlage (plus Zusatzübungen der letzten Einheit) und je Übung den letzten Stand aus irgendeiner Einheit. Ausgelassene Übungen verschwinden so nicht.
 
 ## Trainingsanalyse und Gewicht
