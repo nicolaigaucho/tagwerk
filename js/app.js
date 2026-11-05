@@ -63,7 +63,7 @@ const S = {
   tab: store.get('tab', 'heute'),
   sub: Object.assign({train:'plan', home:'putz', food:'tag', car:'fahrten', shop:'liste'}, store.get('sub', {})),
   daysRecent:{}, weekreview:{},
-  shop:[], lifts:[], runs:[], weights:[], anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
+  shop:[], lifts:[], runs:[], weights:[], aimeals:[], anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
   settings:{...DEF_SET}, plan:{}, shopstats:{counts:{}}, autoshop:{}, gotAutoshop:false,
   recipe:null, rState:'idle', rErr:'', rOpt:{meal:'Abendessen', time:'30', servings:'1', wish:''},
   day:{entries:[], water:0}, dayDate: today(), dayDirty:false,
@@ -123,7 +123,7 @@ async function boot() {
   db = d; base = `data/users/${id}`;
   const got = n => { S.got.add(n); if (S.got.size >= 3 && S.status !== 'ready') { S.status = 'ready'; clearTimeout(slow); } render(); scheduleSync(); };
   const onErr = e => { clearTimeout(slow); if (e?.code === 'revoked') S.status = 'offline'; toast(errMsg(e)); render(); };
-  ['shop','lifts','runs','chores','foods','trips','fuel','pantry','recipes','dishes','weights'].forEach(n =>
+  ['shop','lifts','runs','chores','foods','trips','fuel','pantry','recipes','dishes','weights','aimeals'].forEach(n =>
     col(n).onSnapshot(s => { S[n] = s.docs.map(x => ({id:x.id, ...x.data()})); got(n); }, onErr));
   col('meals').where('date', '>=', addDays(today(), -60)).onSnapshot(s => {
     const m = {}; s.docs.forEach(x => m[x.id] = x.data()); S.meals = m; got('meals'); }, onErr);
@@ -612,10 +612,11 @@ function vFood() {
         ${meter('Eiweiß', tot.p, st.p, 'g')}${meter('Kohlenhydrate', tot.c, st.c, 'g')}${meter('Fett', tot.f, st.f, 'g')}
       </section>
       ${df ? `<section class="card"><div class="item" style="padding:0;border:0"><div class="main"><div class="s">Gericht des Tages</div><div class="t" style="font-size:17px">${esc(df.dish.name)}</div><div class="s">${fmt(df.dish.kcal)} kcal · E ${fmt(df.dish.p)} · K ${fmt(df.dish.c)} · F ${fmt(df.dish.f)}</div></div>${eatenDish ? '<span class="pill solid">gegessen</span>' : `<button class="btn sm acc" data-act="dish-eat" data-v="${S.dayDate}">✓ Gegessen</button>`}</div></section>` : ''}
+      <section class="card stack" style="gap:10px"><div class="card-h" style="margin:0"><h2>Was hast du gegessen?</h2></div>${typeBox()}${recentEstimates() ? `<div class="muted small">Zuletzt geschätzt · 1 Tipp, kostenlos</div>${recentEstimates()}` : '<p class="muted small" style="margin:0">Beschreib dein Essen in eigenen Worten. Claude schätzt Menge und Nährwerte.</p>'}</section>
       <div class="row-actions"><button class="btn acc" style="flex:1" data-act="photo">📷 Foto vom Essen</button><button class="btn ghost" style="flex:1" data-act="combo">Selbst zusammenstellen</button></div>
       <section class="card"><div class="card-h"><h2>Schnell eintragen · 1 Portion</h2><button class="link" data-act="food-add">Menge wählen</button></div>${quickFoods(14) || '<p class="muted small" style="margin:0">Lege unter „Nährwerte“ Lebensmittel an.</p>'}</section>
       <section class="card stack" style="gap:11px"><div class="card-h" style="margin:0"><h2>Wasser</h2><span class="muted small num">${fmt(S.day.water)} / ${fmt(st.water)} ml</span></div>${waterBtns()}</section>
-      ${S.day.entries.length ? `<section class="card"><div class="card-h"><h2>Gegessen</h2></div><div class="list">${S.day.entries.map((e,i) => `<div class="item" data-sl="entry-del" data-v="${i}"><div class="main" ${e.pid ? `data-act="photo-edit" data-v="${e.pid}" role="button"` : ''}><div class="t">${e.photo ? '📷 ' : ''}${esc(e.name)}${e.g ? ` <span class="muted num small">${fmt(e.g)} g</span>` : ''}</div><div class="s num">${fmt(e.kcal)} kcal · E ${fmt(e.p)} · K ${fmt(e.c)} · F ${fmt(e.f)}</div></div><button class="x" data-act="entry-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>`).join('')}</div></section>` : ''}
+      ${S.day.entries.length ? `<section class="card"><div class="card-h"><h2>Gegessen</h2></div><div class="list">${S.day.entries.map((e,i) => `<div class="item" data-sl="entry-del" data-v="${i}"><div class="main" ${e.pid ? `data-act="photo-edit" data-v="${e.pid}" role="button"` : ''}><div class="t">${e.photo ? '📷 ' : e.typed ? '✍️ ' : ''}${esc(e.name)}${e.g ? ` <span class="muted num small">${fmt(e.g)} g</span>` : ''}</div><div class="s num">${fmt(e.kcal)} kcal · E ${fmt(e.p)} · K ${fmt(e.c)} · F ${fmt(e.f)}</div></div><button class="x" data-act="entry-del" data-v="${i}" aria-label="${esc(e.name)} entfernen">×</button></div>`).join('')}</div></section>` : ''}
     </div>`;
   }
   return vMeals();
@@ -1119,13 +1120,13 @@ function photoItem(i, g = i.g) {
   const k = i.g0 > 0 ? g / i.g0 : 1;
   return {...i, g, kcal: i.kcal0*k, p: i.p0*k, c: i.c0*k, f: i.f0*k};
 }
-async function analyzeFood(file) {
+async function analyzeFood(file, text = '') {
   const run = ++photoRun;
-  sheet('Foto wird ausgewertet', `<div class="thinking" style="padding:18px 0"><span class="dots"><i></i><i></i><i></i></span>Claude schaut sich dein Essen an …</div><p class="muted small" style="margin:0">Das dauert meist 10 bis 30 Sekunden.</p>`, {mod:'food', submit:''});
-  let image;
-  try { image = await shrinkImage(file); } catch { closeSheet(); return toast('Das Foto konnte nicht gelesen werden.'); }
+  sheet(text ? 'Wird geschätzt' : 'Foto wird ausgewertet', `<div class="thinking" style="padding:18px 0"><span class="dots"><i></i><i></i><i></i></span>${text ? `Claude schätzt „${esc(text)}“ …` : 'Claude schaut sich dein Essen an …'}</div><p class="muted small" style="margin:0">Das dauert meist ${text ? '5 bis 15' : '10 bis 30'} Sekunden.</p>`, {mod:'food', submit:''});
+  let image = '';
+  if (!text) { try { image = await shrinkImage(file); } catch { closeSheet(); return toast('Das Foto konnte nicht gelesen werden.'); } }
   const foods = S.foods.map(f => ({id: f.id, name: f.name, portion: f.portion || 100, plabel: f.plabel || ''}));
-  const res = await (window.TW?.analyzePhoto?.({image, mediaType: 'image/jpeg', foods}) ?? Promise.resolve({error: 'missing'}));
+  const res = await (window.TW?.analyzePhoto?.(text ? {text, foods} : {image, mediaType: 'image/jpeg', foods}) ?? Promise.resolve({error: 'missing'}));
   if (run !== photoRun || !$('#sheet-root').innerHTML) return;
   closeSheet();
   if (res.error) {
@@ -1138,17 +1139,27 @@ async function analyzeFood(file) {
     const food = foodById(String(i.food_id || '')) ? String(i.food_id) : '';
     return photoItem({food, name: food ? foodById(food).name : String(i.name || 'Unbekannt'), g: Math.round(num(i.grams)), g0: num(i.grams), kcal0: num(i.kcal), p0: num(i.p), c0: num(i.c), f0: num(i.f)});
   });
-  if (!items.length) return toast(r.note ? String(r.note) : PHOTO_ERR.empty);
+  if (!items.length) return toast(r.note ? String(r.note) : text ? 'Daraus konnte kein Essen erkannt werden.' : PHOTO_ERR.empty);
   ensureToday();
   const t = roundT(photoTotals(items)), pid = 'ph' + Date.now();
-  const entry = {name: String(r.title || 'Mahlzeit (Foto)'), ...t, photo: true, pid, conf: String(r.confidence || ''), note: String(r.note || ''), items: items.map(i => ({...i, kcal: rnd(i.kcal, 1), p: rnd(i.p, 1), c: rnd(i.c, 1), f: rnd(i.f, 1)}))};
+  const cleanItems = items.map(i => ({...i, kcal: rnd(i.kcal, 1), p: rnd(i.p, 1), c: rnd(i.c, 1), f: rnd(i.f, 1)}));
+  const entry = {name: String(r.title || (text ? text : 'Mahlzeit (Foto)')), ...t, photo: !text, typed: !!text, pid, conf: String(r.confidence || ''), note: String(r.note || ''), items: cleanItems};
   S.day.entries = [...S.day.entries, entry]; touchDay();
-  toast(`📷 ${entry.name}: ${fmt(t.kcal)} kcal, ${fmt(t.p)} g Eiweiß`, {undo: () => { S.day.entries = S.day.entries.filter(e => e.pid !== pid); touchDay(); }, edit: () => shPhotoEdit(pid)});
+  if (text && db) save(col('aimeals').doc(slug(text)).set({text, title: entry.name, ...t, items: cleanItems, note: entry.note, uses: 1, ts: Date.now()}));
+  toast(`${text ? '✍️' : '📷'} ${entry.name}: ${fmt(t.kcal)} kcal, ${fmt(t.p)} g Eiweiß`, {undo: () => { S.day.entries = S.day.entries.filter(e => e.pid !== pid); touchDay(); }, edit: () => shPhotoEdit(pid)});
 }
+function reAddEstimate(m) {
+  ensureToday(); const pid = 'ph' + Date.now();
+  S.day.entries = [...S.day.entries, {name: m.title, kcal: m.kcal, p: m.p, c: m.c, f: m.f, typed: true, pid, note: m.note || '', items: arr(m.items)}]; touchDay();
+  updItem('aimeals', m.id, {uses: (m.uses || 0) + 1, ts: Date.now()});
+  toast(`✍️ ${m.title}: ${fmt(m.kcal)} kcal`, {undo: () => { S.day.entries = S.day.entries.filter(e => e.pid !== pid); touchDay(); }, edit: () => shPhotoEdit(pid)});
+}
+const typeBox = () => `<form class="addbar" data-form="typed"><input id="typed-in" placeholder="z. B. 2 Leberkäswecken" autocomplete="off" enterkeyhint="send" maxlength="300"><button class="btn acc" style="--accent:var(--food)" type="submit">Schätzen</button></form>`;
+const recentEstimates = (n = 8) => { const m = [...S.aimeals].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, n); return m.length ? `<div class="qchips">${m.map(x => `<button type="button" class="qc" data-act="typed-again" data-id="${x.id}">${esc(x.title)}<small>${fmt(x.kcal)} kcal</small></button>`).join('')}</div>` : ''; };
 function shPhotoEdit(pid) {
   const e = S.day.entries.find(x => x.pid === pid); if (!e) return;
   const items = arr(e.items);
-  sheet('Foto-Eintrag anpassen', `
+  sheet(e.typed ? 'Eintrag anpassen' : 'Foto-Eintrag anpassen', `
     ${inp('name', 'Name', e.name)}
     ${e.note ? `<p class="note" style="margin:0">${esc(e.note)}</p>` : ''}
     ${items.map((i, k) => stepper(`pg${k}`, esc(i.name), Math.round(i.g), {steps:[10, 50], unit:'g'})).join('')}
@@ -1180,6 +1191,7 @@ function shQuick() {
       ${tile('q-weight', null, 'scale', 'train', 'Gewicht', lastWeight() ? `zuletzt ${fmt(lastWeight().kg, 1)} kg` : 'eintragen')}
       ${tile('q-shop', null, 'shop', 'shop', 'Einkauf', `${S.shop.filter(i => !i.done).length} offen`)}
     </div>
+    <div class="fld"><span class="lab">Essen beschreiben</span>${typeBox()}${recentEstimates(6)}</div>
     ${routes.length ? `<div class="fld"><span class="lab">Häufige Fahrten · 1 Tipp</span><div class="qchips">${routes.map((r, i) => `<button type="button" class="qc" data-act="route-quick" data-v="${i}">${esc(r.label)}<small>${fmt(r.dist)} km</small></button>`).join('')}</div></div>` : ''}
     <div class="fld"><span class="lab">Gegessen · 1 Portion</span>${quickFoods(17)}</div>
     <div class="fld"><span class="lab">Auf die Einkaufsliste</span><div class="qchips">${sug.map(n => `<button type="button" class="qc" data-act="shop-quick" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`, {submit: ''});
@@ -1257,6 +1269,7 @@ const ACT = {
   quick: () => shQuick(),
   photo: () => { closeSheet(); pickPhoto(); },
   'photo-edit': v => shPhotoEdit(v),
+  'typed-again': (v, el) => { const m = find('aimeals', el.dataset.id); if (m) { closeSheet(); reAddEstimate(m); } },
   'q-water': () => { closeSheet(); ensureToday(); S.day.water = (S.day.water || 0) + 500; touchDay(); toast('+500 ml Wasser', {undo: () => { S.day.water = Math.max(0, S.day.water - 500); touchDay(); }}); },
   'q-run': v => { closeSheet(); quickRun(num(v)); }, 'q-lift': () => { closeSheet(); quickLift(); }, 'q-eat': () => { closeSheet(); eatToday(); },
   'q-trip': () => shTrip(), 'q-fuel': () => shFuel(),
@@ -1322,6 +1335,12 @@ document.addEventListener('click', ev => {
   fn(el.dataset.v, el, ev);
 });
 document.addEventListener('submit', ev => {
+  const tf = ev.target.closest('[data-form="typed"]');
+  if (tf) { ev.preventDefault(); const el = tf.querySelector('input'), text = el.value.trim(); if (!text) return;
+    const known = S.aimeals.find(m => m.text.toLowerCase() === text.toLowerCase());
+    el.value = ''; el.blur();
+    if (known) { closeSheet(); return reAddEstimate(known); }
+    analyzeFood(null, text); return; }
   const pf = ev.target.closest('[data-form="pantry"]');
   if (pf) { ev.preventDefault(); const el = pf.querySelector('input'); const names = el.value.split(/[,;\n]/); el.value = ''; addPantry(names); return; }
   const f = ev.target.closest('[data-form="shop"]'); if (!f) return;

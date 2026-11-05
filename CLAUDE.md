@@ -46,6 +46,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - **Vorrat**: Vorschläge kommen aus den Lebensmittel-Namen; „Daraus kannst du kochen“ vergleicht `parts` mit dem Vorrat (Namensgleichheit). Einkaufsliste und Vorrat gleichen Namen exakt ab, nicht per Wortanfang.
 - KI-Rezepte sind in der eigenständigen Version aus (kein `sample`).
 - **Foto-Erkennung** (`pickPhoto`, `analyzeFood`, `shPhotoEdit`, `TW.analyzePhoto`): Foto wird auf max. 1280 px als JPEG verkleinert, an `food-photo` geschickt. Erkannte Komponenten mit `food_id` werden mit den eigenen Nährwerten berechnet, Unbekanntes mit Claudes Schätzung. Eintrag sofort speichern (`photo: true`, `pid`, `items`), Toast mit Rückgängig/Ändern. Kosten trägt der Nutzer über sein API-Guthaben (Pro-Abo, 5 $ Monatslimit): sparsam bleiben, kein Bild doppelt senden.
+- **Essen beschreiben** (`typeBox`, `analyzeFood(null, text)`): Freitext wie „2 Leberkäswecken“ geht an dieselbe Funktion (`text` statt `image`). Ergebnis wird als `typed: true` eingetragen und in `aimeals/items/<slug(text)>` gemerkt. Gleicher Text oder Tipp auf „Zuletzt geschätzt“ (`reAddEstimate`) trägt ohne neue API-Anfrage ein.
 
 ## Bedienung (möglichst wenige Klicks)
 - **Sofort speichern statt Formular:** `quickRun`, `quickLift`, `eatToday`, `choreDone`, `quickFood`, Routen speichern direkt und zeigen `toast(msg, {undo, edit})` mit „Rückgängig“ und „Ändern“. Löschen über `delUndo`. Neue Aktionen nach diesem Muster bauen.

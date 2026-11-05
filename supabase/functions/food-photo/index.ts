@@ -42,15 +42,30 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method" }, 405);
 
-  let body: { image?: unknown; mediaType?: unknown; foods?: unknown };
+  let body: { image?: unknown; mediaType?: unknown; foods?: unknown; text?: unknown };
   try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
   const image = typeof body.image === "string" ? body.image : "";
   const mediaType = TYPES.includes(String(body.mediaType)) ? String(body.mediaType) : "image/jpeg";
-  if (image.length < 100 || image.length > 7_000_000) return json({ error: "bad_image" }, 400);
+  const text = typeof body.text === "string" ? body.text.trim().slice(0, 300) : "";
+  if (!text && (image.length < 100 || image.length > 7_000_000)) return json({ error: "bad_image" }, 400);
   const foods = Array.isArray(body.foods) ? body.foods.slice(0, 60) : [];
   const list = foods
     .map((f: Record<string, unknown>) => `- ID "${String(f.id)}": ${String(f.name)}, 1 Portion = ${String(f.plabel || `${f.portion} g`)} (${Number(f.portion) || 100} g)`)
     .join("\n");
+
+  const textPrompt = `Die Person beschreibt, was sie gegessen hat: »${text}«
+Schätze, aus welchen Komponenten das besteht, wie viel davon üblicherweise drin ist und welche Nährwerte das hat. Beispiel: ein Leberkäsweck ist ein Brötchen (ca. 60 g) mit einer Scheibe Leberkäse (ca. 100 g). Zahlen und Mengenwörter (zwei, halbe, große Portion) genau beachten.
+
+Die Person isst meistens diese Lebensmittel:
+${list || "(keine Liste)"}
+
+So gehst du vor:
+- Ordne eine Komponente nur dann einer ID aus der Liste zu, wenn sie wirklich dasselbe Lebensmittel ist. Sonst food_id leer ("").
+- grams: übliche Menge für die beschriebene Portion, gezählt wie in der Liste (Nudeln und Reis dort ungekocht, Pommes als TK-Gewicht).
+- kcal, p (Eiweiß), c (Kohlenhydrate), f (Fett): realistische Schätzung für genau diese Menge, in kcal bzw. Gramm.
+- title: kurzer deutscher Name, so wie die Person es sagen würde, zum Beispiel "2 Leberkäswecken".
+- confidence: wie sicher die Schätzung ist. note: ein kurzer deutscher Satz zu Annahmen (z. B. Größe), sonst leer.
+- Ist die Beschreibung kein Essen oder Getränk, gib items leer zurück und erkläre es in note.`;
 
   const prompt = `Auf dem Foto ist eine Mahlzeit. Schätze, was darauf liegt und wie viel davon.
 
@@ -75,10 +90,12 @@ So gehst du vor:
       output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
       messages: [{
         role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: mediaType, data: image } },
-          { type: "text", text: prompt },
-        ],
+        content: text
+          ? [{ type: "text", text: textPrompt }]
+          : [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: image } },
+            { type: "text", text: prompt },
+          ],
       }],
     } as never);
     // deno-lint-ignore no-explicit-any
