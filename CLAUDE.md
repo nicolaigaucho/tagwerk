@@ -37,6 +37,11 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - Training: Oberkörper 3x (A Brust/Trizeps, B Rücken/Bizeps, C Schultern/Arme), bewusst ohne Beintraining (Wunsch des Nutzers). Läufe 3x mit Rotation 5, 6, 8 km.
 - **Doppelte Progression** (`nextTarget`, `liftRows`): Vorlagen in `plan.templates[titel]` mit `min`, `max` (Wdh.-Bereich), `step` (kg), `hint`. Vorschlag = letzte Einheit +1 Wdh., am oberen Ende +`step` kg und zurück auf `min`. „Geschafft“ speichert den Vorschlag direkt.
 
+## Kraft-Reiter und Live-Training
+- **Übersicht** (`vStrength`): Kennzahlen (Woche, Volumen, Rekorde 30 Tage, Ø Dauer), die Trainingspläne aus `plan.templates` mit „▶ Start“, Übungsliste mit Trend (Tipp öffnet `shExercise`: Verlauf, Bestwert, letzte Einheiten mit allen Sätzen), Volumen-Diagramm, Verlauf.
+- **Live-Training** (`woStart`, `vWorkout`, `woFinish`): laufendes Training im Dokument `workout` (übersteht App-Neustart), je Übung Ziel aus `liftRows` und Satz-Eintrag mit Steppern, Pausen- und Gesamtuhr (`woTicker`). Beim Abschließen wird eine Einheit in `lifts` gespeichert, jede Übung mit `log: [{reps, kg, t}]` sowie `sets`/`reps`/`kg` als Zusammenfassung (Höchstgewicht, geringste Wdh. bei diesem Gewicht, damit die Progression nur bei geschafften Sätzen steigert), dazu `start`, `end`, `dur`.
+- `liftRows(titel)` nimmt immer alle Übungen der Vorlage (plus Zusatzübungen der letzten Einheit) und je Übung den letzten Stand aus irgendeiner Einheit. Ausgelassene Übungen verschwinden so nicht.
+
 ## Trainingsanalyse und Gewicht
 - Reiter **Training › Analyse** (`vAnalysis`): Planerfüllung der letzten 4 Wochen, Kraftverlauf je Übung (geschätztes 1RM nach Epley, ohne Gewicht: Wdh.), bewegtes Gewicht pro Woche, neue Bestleistungen (`prList`), Lauf-Pace und Bestzeiten je Rotationsdistanz, Körpergewicht mit Wochentrend. Diagramme: `lineChart`, `barChart`.
 - **Körpergewicht** in `weights/items/<datum>` (`{date, kg}`), Eintrag über `shWeight` (Analyse, Plus-Menü, Karte auf Heute). Erinnerung, wenn das letzte Wiegen 7 Tage oder länger her ist (`weighDue`), ebenso als Zeile im 10-Uhr-Push (`daily.mjs`).

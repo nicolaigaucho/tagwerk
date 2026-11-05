@@ -321,3 +321,11 @@ body[data-mod="shop"] .item .t{font-size:18px}
 .picks.hscroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:0 16px 2px;-webkit-overflow-scrolling:touch}
 .picks.hscroll::-webkit-scrollbar{display:none}
 .picks.hscroll .pk{flex:none}
+
+/* Live-Training */
+.setlist{display:flex;flex-wrap:wrap;gap:6px}
+.setchip{border:0;background:color-mix(in srgb,var(--shop) 14%,#fff);color:#1d6b33;border-radius:999px;padding:6px 10px;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
+.setchip b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--shop);color:#fff;font-size:11px;margin-right:4px}
+.setchip span{color:var(--muted);margin-left:4px}
+.wo-big{padding:16px 18px;font-size:18px}
+.wo-head .bar{height:8px}
