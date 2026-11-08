@@ -356,7 +356,7 @@ function vToday() {
     shop: card('shop', `Einkauf · ${open.length} offen`, shopBody, 'shop'),
     car: card('car', 'Auto · ' + new Date().toLocaleDateString('de-DE',{month:'long'}), `<div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><div class="k">Gefahren</div><div class="v">${fmt(kmMonth)} <small>km</small></div></div><div class="stat"><div class="k">Tankkosten</div><div class="v">${fmt(costMonth,2)} <small>€</small></div></div></div><div class="row-actions" style="margin-top:10px"><button class="btn sm ghost" data-act="trip-new">Fahrt eintragen</button><button class="btn sm ghost" data-act="fuel-new">Tanken</button></div>`, 'car')
   };
-  const woCard = S.workout ? `<section class="card"><div class="hero"><span class="ti" style="--m:var(--train)">${ICON.train}</span><div style="flex:1;min-width:0"><div class="t" style="font-weight:600">${esc(S.workout.title.replace(/ · .*/, ''))} läuft</div><div class="muted small">${sum(S.workout.ex, x => x.log.length)} Sätze · <span data-tick="start">${clock(Date.now() - S.workout.startedAt)}</span></div></div><button class="btn sm acc" style="--accent:var(--train)" data-act="wo-resume">Fortsetzen</button></div></section>` : '';
+  const woCard = S.workout ? `<section class="card"><div class="hero"><span class="ti" style="--m:var(--train)">${ICON.train}</span><div style="flex:1;min-width:0"><div class="t" style="font-weight:600">${esc(S.workout.title.replace(/ · .*/, ''))} läuft</div><div class="muted small">${sum(S.workout.ex, workSets)} Sätze · <span data-tick="start">${clock(Date.now() - S.workout.startedAt)}</span></div></div><button class="btn sm acc" style="--accent:var(--train)" data-act="wo-resume">Fortsetzen</button></div></section>` : '';
   return `<div class="stack">${woCard}${rw ? vReview(rw) : ''}${weighDue() ? weighCard() : ''}${order.map(k => cards[k]).join('')}</div>`;
 }
 function reviewWeek() {
@@ -437,7 +437,8 @@ function vTrain() {
 /* ---------- Kraft: Übersicht, Live-Training, Übungsdetails ---------- */
 const planLetter = t => (t.match(/Oberkörper\s+([A-Z])/) || [])[1] || (t.trim()[0] || '?').toUpperCase();
 const planFocus = t => t.split(' · ')[1] || '';
-const exLogText = e => arr(e.log).length ? `${e.log.map(x => x.reps).join(' · ')} Wdh. × ${fmt(e.kg || 0, 1)} kg` : `${e.sets}×${e.reps}${e.kg ? ` · ${fmt(e.kg, 1)} kg` : ''}`;
+const workSets = e => arr(e.log).filter(x => !x.drop).length;
+const exLogText = e => arr(e.log).length ? `${e.log.filter(x => !x.drop).map(x => x.reps).join(' · ')} Wdh. × ${fmt(e.kg || 0, 1)} kg${e.log.filter(x => x.drop).map(x => ` · ↓ ${x.reps} × ${fmt(x.kg, 1)} kg`).join('')}` : `${e.sets}×${e.reps}${e.kg ? ` · ${fmt(e.kg, 1)} kg` : ''}`;
 const fmtMin = ms => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
 const clock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 function vStrength() {
@@ -563,15 +564,16 @@ function woStart(title) {
   woSave(); render(); scrollTo(0, 0);
 }
 function woDraft() {
-  const w = S.workout, e = w.ex[w.cur], lastLog = e.log[e.log.length - 1];
+  const w = S.workout, e = w.ex[w.cur], lastLog = e.log.filter(x => !x.drop).pop();
   if (!S.wDraft || S.wDraft.i !== w.cur || S.wDraft.n !== e.log.length) S.wDraft = {i: w.cur, n: e.log.length, reps: lastLog ? Math.min(lastLog.reps, e.reps) : e.reps, kg: lastLog ? lastLog.kg : e.kg};
   return S.wDraft;
 }
 function vWorkout() {
   const w = S.workout, e = w.ex[w.cur], d = woDraft();
-  const total = sum(w.ex, x => Math.max(x.sets, x.log.length)), done = sum(w.ex, x => x.log.length);
-  const setNo = e.log.length + 1, allDone = e.log.length >= e.sets;
-  const nextIdx = w.ex.findIndex((x, i) => i > w.cur && x.log.length < x.sets);
+  const total = sum(w.ex, x => Math.max(x.sets, workSets(x))), done = sum(w.ex, workSets);
+  const setNo = workSets(e) + 1, allDone = workSets(e) >= e.sets, drop = !!d.drop;
+  const nextIdx = w.ex.findIndex((x, i) => i > w.cur && workSets(x) < x.sets);
+  let no = 0;
   return `<div class="stack">
     <section class="card wo-head"><div class="card-h"><span class="tag"><span class="ti" style="--m:var(--train)">${ICON.train}</span>${esc(w.title.replace(/ · .*/, ''))} läuft</span><span class="num" data-tick="start" style="font-weight:600">${clock(Date.now() - w.startedAt)}</span></div>
       <div class="bar"><span style="width:${total ? done / total * 100 : 0}%"></span></div>
@@ -581,16 +583,16 @@ function vWorkout() {
       <div><div class="muted small">Übung ${w.cur + 1} von ${w.ex.length}${e.hint ? ' · ' + esc(e.hint) : ''}</div><div style="font-size:24px;font-weight:700;letter-spacing:-.02em">${esc(e.name)}</div>
         <div class="small">Ziel: <b>${e.sets} × ${e.reps} Wdh.${e.kg ? ` mit ${fmt(e.kg, 1)} kg` : ''}</b>${e.up ? ` <span class="pill acc">${e.up === 'kg' ? '+' + fmt(e.step || 2.5, 1) + ' kg' : '+1 Wdh.'}</span>` : ''}</div>
         ${e.prev ? `<div class="muted small">Letztes Mal: ${e.prev.sets}×${e.prev.reps}${e.prev.kg ? ` mit ${fmt(e.prev.kg, 1)} kg` : ''}</div>` : ''}</div>
-      ${e.log.length ? `<div class="setlist">${e.log.map((x, k) => `<button class="setchip" data-act="wo-undo" data-v="${k}" aria-label="Satz ${k + 1} entfernen"><b>${k + 1}</b> ${x.reps} × ${fmt(x.kg, 1)} kg <span>×</span></button>`).join('')}</div>` : ''}
+      ${e.log.length ? `<div class="setlist">${e.log.map((x, k) => `<button class="setchip${x.drop ? ' drop' : ''}" data-act="wo-undo" data-v="${k}" aria-label="${x.drop ? 'Dropsatz' : 'Satz'} entfernen"><b>${x.drop ? '↓' : ++no}</b> ${x.reps} × ${fmt(x.kg, 1)} kg <span>×</span></button>`).join('')}</div>` : ''}
       <div class="stack" style="gap:8px">
-        ${stepper('w_reps', `Satz ${setNo} · Wdh.`, d.reps, {steps: [1]})}
+        ${stepper('w_reps', drop ? 'Dropsatz · Wdh.' : `Satz ${setNo} · Wdh.`, d.reps, {steps: [1]})}
         ${stepper('w_kg', 'Gewicht', d.kg, {steps: [e.step || 2.5], dec: 1, unit: 'kg'})}
       </div>
-      <button class="btn acc wide wo-big" data-act="wo-set">✓ Satz ${setNo}${allDone ? ' (Extra)' : ''} erledigt</button>
+      <div class="wo-row"><button class="btn acc wide wo-big" data-act="wo-set">✓ ${drop ? 'Dropsatz' : `Satz ${setNo}${allDone ? ' (Extra)' : ''}`} erledigt</button>${e.log.length ? `<button class="btn ghost wo-drop${drop ? ' on' : ''}" data-act="wo-drop" aria-label="Dropsatz">${drop ? '✕ Drop' : '↓ Drop'}</button>` : ''}</div>
       ${allDone ? (nextIdx >= 0 ? `<button class="btn wide" data-act="wo-go" data-v="${nextIdx}">Weiter: ${esc(w.ex[nextIdx].name)} ›</button>` : `<button class="btn wide" data-act="wo-finish">Training abschließen</button>`) : ''}
     </section>
 
-    <section class="card"><div class="card-h"><h2>Alle Übungen</h2><span class="muted small">→ für heute tauschen</span></div><div class="list">${w.ex.map((x, i) => `<div class="item ${i === w.cur ? 'today' : ''}" ${x.log.length ? '' : `data-sr="wo-swap" data-srl="Tauschen" data-src="swap" data-v="${i}"`}><span class="num-badge" style="${x.log.length >= x.sets ? 'background:var(--shop);color:#fff' : i === w.cur ? 'background:var(--train);color:#fff' : ''}">${x.log.length >= x.sets ? '✓' : i + 1}</span><button class="main" data-act="wo-go" data-v="${i}"><div class="t">${esc(x.name)}</div><div class="s">${x.log.length}/${x.sets} Sätze · Ziel ${x.reps} × ${fmt(x.kg, 1)} kg</div></button></div>`).join('')}</div></section>
+    <section class="card"><div class="card-h"><h2>Alle Übungen</h2><span class="muted small">→ für heute tauschen</span></div><div class="list">${w.ex.map((x, i) => `<div class="item ${i === w.cur ? 'today' : ''}" ${x.log.length ? '' : `data-sr="wo-swap" data-srl="Tauschen" data-src="swap" data-v="${i}"`}><span class="num-badge" style="${workSets(x) >= x.sets ? 'background:var(--shop);color:#fff' : i === w.cur ? 'background:var(--train);color:#fff' : ''}">${workSets(x) >= x.sets ? '✓' : i + 1}</span><button class="main" data-act="wo-go" data-v="${i}"><div class="t">${esc(x.name)}</div><div class="s">${workSets(x)}/${x.sets} Sätze${x.log.length > workSets(x) ? ` + ${x.log.length - workSets(x)} Drop` : ''} · Ziel ${x.reps} × ${fmt(x.kg, 1)} kg</div></button></div>`).join('')}</div></section>
 
     <div class="row-actions"><button class="btn acc" style="flex:1;--accent:var(--shop)" data-act="wo-finish">Training abschließen</button><button class="btn danger" data-act="wo-cancel">Abbrechen</button></div>
   </div>`;
@@ -606,9 +608,9 @@ function woTicker() {
 }
 function woFinish() {
   const w = S.workout; if (!w) return;
-  const ex = w.ex.filter(e => e.log.length).map(e => {
-    const top = Math.max(...e.log.map(x => x.kg)), atTop = e.log.filter(x => x.kg === top);
-    return exMeta({name: e.name, sets: e.log.length, reps: Math.min(...atTop.map(x => x.reps)), kg: top, min: e.min, max: e.max, step: e.step, log: e.log});
+  const ex = w.ex.filter(e => workSets(e)).map(e => {
+    const main = e.log.filter(x => !x.drop), top = Math.max(...main.map(x => x.kg)), atTop = main.filter(x => x.kg === top);
+    return exMeta({name: e.name, sets: main.length, reps: Math.min(...atTop.map(x => x.reps)), kg: top, min: e.min, max: e.max, step: e.step, log: e.log});
   });
   if (!ex.length) return toast('Noch kein Satz eingetragen. Zum Verwerfen auf „Abbrechen“.');
   const before = new Set(prList().map(r => r.name + r.date));
@@ -1504,11 +1506,15 @@ const ACT = {
   'wo-resume': () => { S.tab = 'train'; S.sub.train = 'kraft'; store.set('tab', 'train'); store.set('sub', S.sub); render(); scrollTo(0, 0); },
   'wo-set': () => { const w = S.workout; if (!w) return; const e = w.ex[w.cur], reps = Math.round(num($('#f-w_reps')?.value)), kg = rnd(num($('#f-w_kg')?.value), 2);
     if (!(reps > 0)) return toast('Bitte Wiederholungen einstellen.');
-    e.log.push({reps, kg, t: Date.now()}); w.lastSetAt = Date.now(); S.wDraft = null;
-    if (e.log.length >= e.sets) { const nx = w.ex.findIndex((x, i) => i > w.cur && x.log.length < x.sets); if (nx >= 0) { toast(`${e.name} fertig. Weiter mit ${w.ex[nx].name}`); w.cur = nx; } }
+    const drop = !!S.wDraft?.drop;
+    e.log.push({reps, kg, t: Date.now(), ...(drop ? {drop: true} : {})}); w.lastSetAt = Date.now(); S.wDraft = null;
+    if (!drop && workSets(e) >= e.sets) { const nx = w.ex.findIndex((x, i) => i > w.cur && workSets(x) < x.sets); if (nx >= 0) { toast(`${e.name} fertig. Weiter mit ${w.ex[nx].name}`); w.cur = nx; } }
     woSave(); render(); },
   'wo-undo': v => { const w = S.workout; if (!w) return; const e = w.ex[w.cur], k = Number(v), x = e.log[k]; e.log.splice(k, 1); S.wDraft = null; woSave(); render();
-    toast(`Satz ${k + 1} entfernt`, {undo: () => { e.log.splice(k, 0, x); S.wDraft = null; woSave(); render(); }}); },
+    toast(x.drop ? 'Dropsatz entfernt' : 'Satz entfernt', {undo: () => { e.log.splice(k, 0, x); S.wDraft = null; woSave(); render(); }}); },
+  'wo-drop': () => { const w = S.workout; if (!w) return; const e = w.ex[w.cur], d = woDraft(), last = e.log[e.log.length - 1]; if (!last) return;
+    if (d.drop) { S.wDraft = null; return render(); }
+    const st = e.step || 2.5; d.drop = true; d.kg = Math.max(0, Math.round(last.kg * 0.8 / st) * st); d.reps = last.reps; render(); },
   'wo-go': v => { if (!S.workout) return; S.workout.cur = Number(v); S.wDraft = null; woSave(); render(); scrollTo(0, 0); },
   'wo-finish': () => woFinish(),
   'wo-cancel': (v, el) => { if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'Wirklich verwerfen?'; return; } S.workout = null; S.wDraft = null; woSave(); clearInterval(woTick); render(); toast('Training verworfen'); },

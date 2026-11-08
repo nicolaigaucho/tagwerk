@@ -328,6 +328,12 @@ body[data-mod="shop"] .item .t{font-size:18px}
 .setchip b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--shop);color:#fff;font-size:11px;margin-right:4px}
 .setchip span{color:var(--muted);margin-left:4px}
 .wo-big{padding:16px 18px;font-size:18px}
+.wo-row{display:flex;gap:8px;align-items:stretch}
+.wo-row .wo-big{flex:1;min-width:0}
+.wo-drop{flex:none;padding:0 14px;font-size:15px;font-weight:600}
+.wo-drop.on{background:color-mix(in srgb,var(--train) 16%,#fff);color:var(--train)}
+.setchip.drop{background:color-mix(in srgb,var(--train) 12%,#fff);color:#7a3f00}
+.setchip.drop b{background:var(--train)}
 .wo-head .bar{height:8px}
 
 .swipe-bg.l.edit{background:color-mix(in srgb,var(--home) 55%,#fff)}.swipe-bg.l.edit.go{background:var(--home)}
