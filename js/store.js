@@ -173,7 +173,22 @@
     } catch (e) { return {error: 'upstream', detail: String(e?.message || e).slice(0, 300)}; }
   }
 
-  window.TW = {analyzePhoto, email: () => email, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
+  async function garminSync(days) {
+    if (!navigator.onLine) return {error: 'offline'};
+    try {
+      const {data, error} = await sb.functions.invoke('garmin-sync', {body: {days: days || 60}});
+      if (error) {
+        const ctx = error.context, st = ctx?.status; let body = '';
+        try { body = ctx && typeof ctx.text === 'function' ? await ctx.text() : ''; } catch {}
+        try { const j = JSON.parse(body); if (j && j.error) return j; } catch {}
+        if (st === 404) return {error: 'missing'};
+        return {error: 'upstream', detail: `HTTP ${st || '?'}: ${(body || error.message || '').slice(0, 200)}`};
+      }
+      return data || {error: 'upstream'};
+    } catch (e) { return {error: 'upstream', detail: String(e?.message || e).slice(0, 200)}; }
+  }
+
+  window.TW = {analyzePhoto, garminSync, email: () => email, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
 
   /* ---------- auth screen ---------- */
   const authEl = document.getElementById('auth');

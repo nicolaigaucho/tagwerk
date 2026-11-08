@@ -33,6 +33,7 @@ const ICON = {
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>',
   food:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10"/><path d="M17 21V3c-2.2 1.2-3.5 3.6-3.5 7v3H17"/></svg>',
   car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r=".8"/><circle cx="16.5" cy="13" r=".8"/></svg>',
+  watch:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="3.5"/><path d="M9 6l1-3h4l1 3M9 18l1 3h4l1-3M12 9.5V12l1.5 1"/></svg>',
   scale:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="4"/><path d="M8.5 9.5a5 5 0 0 1 7 0M12 9.5l1.2-1.6"/></svg>',
   drop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></svg>',
   fuel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15M3 20h12M4 10h10M14 8l3 2v7a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg>',
@@ -63,7 +64,7 @@ const S = {
   tab: store.get('tab', 'heute'),
   sub: Object.assign({train:'plan', home:'putz', food:'tag', car:'fahrten', shop:'liste'}, store.get('sub', {})),
   daysRecent:{}, weekreview:{},
-  shop:[], lifts:[], runs:[], weights:[], aimeals:[], workout:null, wDraft:null, anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
+  shop:[], lifts:[], runs:[], weights:[], aimeals:[], workout:null, wDraft:null, garminsync:{}, gState:'idle', gErr:'', anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
   settings:{...DEF_SET}, plan:{}, shopstats:{counts:{}}, autoshop:{}, gotAutoshop:false,
   recipe:null, rState:'idle', rErr:'', rOpt:{meal:'Abendessen', time:'30', servings:'1', wish:''},
   day:{entries:[], water:0}, dayDate: today(), dayDirty:false,
@@ -131,6 +132,7 @@ async function boot() {
   one('plan').onSnapshot(s => { S.plan = s.exists ? {...s.data()} : {}; got('plan'); }, onErr);
   one('autoshop').onSnapshot(s => { S.autoshop = s.exists ? {...s.data()} : {}; S.gotAutoshop = true; scheduleSync(); render(); }, onErr);
   col('days').where('date', '>=', addDays(today(), -14)).onSnapshot(s => { const m = {}; s.docs.forEach(x => m[x.id] = x.data()); S.daysRecent = m; render(); }, onErr);
+  one('garminsync').onSnapshot(s => { S.garminsync = s.exists ? {...s.data()} : {}; render(); }, onErr);
   one('workout').onSnapshot(s => { const w = s.exists ? s.data() : null; if (JSON.stringify(w) !== JSON.stringify(S.workout)) { S.workout = w && arr(w.ex).length ? JSON.parse(JSON.stringify(w)) : null; woTicker(); render(); } }, onErr);
   one('weekreview').onSnapshot(s => { S.weekreview = s.exists ? {...s.data()} : {}; render(); }, onErr);
   one('shopstats').onSnapshot(s => { S.shopstats = s.exists ? {counts:{...(s.data().counts || {})}} : {counts:{}}; got('shopstats'); }, onErr);
@@ -288,6 +290,7 @@ function draw() {
     ${statusNote()}${sub}${views[S.tab]()}
     <button class="fab" data-act="quick" aria-label="Schnell eintragen">+</button>`;
   if (S.workout) woTicker();
+  garminAuto();
   syncWake();
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.value = keep.v; el.focus(); try { el.setSelectionRange(keep.s, keep.s); } catch {} } }
 }
@@ -418,7 +421,8 @@ function vTrain() {
   const mPace = mKm > 0 ? pace(sum(mRuns, r => r.sec), mKm) : '0:00';
   const weeks = []; for (let i = 7; i >= 0; i--) { const ws = addDays(wk, -7*i); weeks.push({ws, km: sum(runs.filter(r => mondayOf(r.date) === ws), r => r.km)}); }
   return `<div class="stack">
-    <div class="row-actions"><button class="btn acc" style="flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button><button class="btn ghost" data-act="run-new">Details</button></div>
+    ${garminCard()}
+    ${garminOn() ? '' : `<div class="row-actions"><button class="btn acc" style="flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button><button class="btn ghost" data-act="run-new">Details</button></div>`}
     <div class="stats">
       <div class="stat"><div class="k">Diese Woche</div><div class="v">${fmt(wKm,1)} <small>km</small></div></div>
       <div class="stat"><div class="k">Dieser Monat</div><div class="v">${fmt(mKm,1)} <small>km</small></div></div>
@@ -426,7 +430,7 @@ function vTrain() {
       <div class="stat"><div class="k">Ø Pace Monat</div><div class="v">${mPace} <small>/km</small></div></div>
     </div>
     <section class="card"><div class="card-h"><h2>Kilometer pro Woche</h2></div>${weekChart(weeks)}</section>
-    ${runs.length ? `<section class="card"><div class="card-h"><h2>Alle Läufe</h2></div><div class="list">${runs.map(r => `<div class="item" data-sl="run-del" data-id="${r.id}"><button class="main" data-act="run-edit" data-id="${r.id}"><div class="t num">${fmt(r.km,1)} km · ${fDur(r.sec)}</div><div class="s">${fDate(r.date)}${r.note ? ' · '+esc(r.note) : ''}</div></button><div class="r num small">${pace(r.sec, r.km)}<span class="muted"> /km</span></div></div>`).join('')}</div></section>`
+    ${runs.length ? `<section class="card"><div class="card-h"><h2>Alle Läufe</h2></div><div class="list">${runs.map(r => `<div class="item" data-sl="run-del" data-id="${r.id}"><button class="main" data-act="run-edit" data-id="${r.id}"><div class="t num">${r.source === 'garmin' ? '⌚ ' : ''}${fmt(r.km,2)} km · ${fDur(r.sec)}</div><div class="s">${fDate(r.date)}${r.hr ? ` · ⌀ ${r.hr} bpm` : ''}${r.elev ? ` · ${r.elev} hm` : ''}${r.note ? ' · '+esc(r.note) : ''}</div></button><div class="r num small">${pace(r.sec, r.km)}<span class="muted"> /km</span></div></div>`).join('')}</div></section>`
     : empty('Noch kein Lauf', 'Tippe auf „Lauf eintragen“. Distanz und Zeit stellst du per Buttons ein, die Pace rechnet die App.')}
   </div>`;
 }
@@ -1353,6 +1357,44 @@ function shPhotoEdit(pid) {
   after: form => { const upd = () => { const f = Object.fromEntries(new FormData(form)); const t = photoTotals(items.map((i, k) => photoItem(i, num(f[`pg${k}`])))); $('#photo-sum').textContent = `Summe: ${fmt(t.kcal)} kcal · E ${fmt(t.p)} g · K ${fmt(t.c)} g · F ${fmt(t.f)} g`; }; form.addEventListener('input', upd); upd(); }});
 }
 
+/* ---------- Garmin ---------- */
+const G_ERR = {
+  no_key: 'Garmin ist noch nicht verbunden.',
+  garmin_key: 'Der Garmin-Schlüssel ist ungültig oder abgelaufen. Erstell in Garmin Connect einen neuen.',
+  missing: 'Die Garmin-Verbindung ist noch nicht eingerichtet.',
+  offline: 'Keine Verbindung.',
+  auth: 'Bitte neu anmelden.'
+};
+const garminOn = () => !!S.garminsync.last;
+const agoText = isoTs => { const m = Math.round((Date.now() - Date.parse(isoTs)) / 60000); return m < 1 ? 'gerade eben' : m < 60 ? `vor ${m} Min.` : m < 1440 ? `vor ${Math.round(m / 60)} Std.` : fDate(isoTs.slice(0, 10)); };
+let gAutoAt = 0;
+async function garminSync({quiet = false, days} = {}) {
+  if (S.gState === 'running' || !window.TW?.garminSync) return;
+  S.gState = 'running'; S.gErr = ''; if (!quiet) render();
+  const r = await window.TW.garminSync(days);
+  S.gState = 'idle';
+  if (r.error) {
+    S.gErr = r.error === 'no_key' || r.error === 'missing' ? '' : (G_ERR[r.error] || 'Garmin-Abruf hat nicht geklappt.') + (r.detail && !G_ERR[r.error] ? ` (${r.detail})` : '');
+    if (r.error === 'no_key' || r.error === 'missing') S.gOff = true;
+    if (!quiet) toast(G_ERR[r.error] || 'Garmin-Abruf hat nicht geklappt.');
+    return render();
+  }
+  S.gOff = false;
+  if (r.added) toast(`⌚ ${r.added} ${r.added === 1 ? 'neuer Lauf' : 'neue Läufe'} von Garmin${r.replaced ? `, ${r.replaced} Handeintrag ersetzt` : ''}`);
+  else if (!quiet) toast('⌚ Alles aktuell, kein neuer Lauf');
+  render();
+}
+function garminAuto() {
+  if (S.gOff || S.status !== 'ready' || !navigator.onLine || !['heute', 'train'].includes(S.tab)) return;
+  const last = Date.parse(S.garminsync.last || 0) || 0;
+  if (Date.now() - last < 15 * 60000 || Date.now() - gAutoAt < 15 * 60000) return;
+  gAutoAt = Date.now(); garminSync({quiet: true});
+}
+function garminCard() {
+  const g = S.garminsync;
+  return `<section class="card"><div class="hero"><span class="ti" style="--m:var(--car)">${ICON.watch}</span><div style="flex:1;min-width:0"><div style="font-weight:600">Garmin Forerunner</div><div class="muted small">${S.gState === 'running' ? 'Rufe Läufe ab …' : g.last ? `Abgerufen ${agoText(g.last)}${g.found != null ? ` · ${g.found} Läufe in 60 Tagen` : ''}` : 'Noch nicht abgerufen'}</div>${S.gErr ? `<div class="small" style="color:var(--danger)">${esc(S.gErr)}</div>` : ''}</div><button class="btn sm ghost" data-act="garmin-sync" ${S.gState === 'running' ? 'disabled' : ''}>Abrufen</button></div></section>`;
+}
+
 /* ---------- Plus-Knopf: Schnellmenü ---------- */
 function shQuick() {
   const t = today(), df = dishFor(t), km = rotation()[nextRunIdx()], routes = lastOdo() ? topRoutes() : [];
@@ -1480,6 +1522,7 @@ const ACT = {
   'pe-pick': (v, el) => pickExercise(v, el.dataset.t, el.dataset.m === 'workout' ? Number(el.dataset.i) : (el.dataset.i === '' ? null : Number(el.dataset.i)), el.dataset.m),
   'pe-pick-own': (v, el) => pickExercise($('#pe-own')?.value || '', el.dataset.t, el.dataset.m === 'workout' ? Number(el.dataset.i) : (el.dataset.i === '' ? null : Number(el.dataset.i)), el.dataset.m),
   'wo-swap': v => shExPick(S.workout?.title, Number(v), 'workout'),
+  'garmin-sync': () => garminSync(),
   'ana-ex': v => { S.anaEx = v; store.set('anaEx', v); render(); },
   'weight-new': () => shWeight(),
   'q-weight': () => shWeight(),

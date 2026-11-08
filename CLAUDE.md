@@ -16,6 +16,7 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 | `scripts/daily.mjs` + `.github/workflows/daily.yml` | Täglicher Push gegen 10 Uhr Berlin (GitHub Action, zwei Crons, Skript prüft Uhrzeit und sendet einmal pro Tag) |
 | `supabase/setup.sql` | Einmaliges Datenbank-Setup |
 | `supabase/functions/food-photo/index.ts` + `.github/workflows/functions.yml` | Foto-Erkennung: Edge Function ruft Claude Opus 5.5 (Bild + Lebensmittel-Liste, strukturierte JSON-Antwort, `fallbacks: "default"`). Wird per GitHub Action mit der Supabase CLI veröffentlicht |
+| `supabase/functions/garmin-sync/index.ts` | Garmin Connect Personal API: tauscht Secret `GARMIN_API_KEY` gegen 24-h-Token (`POST personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token`, Header `Authorization: ApiKey …`, Antwort = JWT als Text), liest `/activitylist-service/activities/search/activities` und schreibt Läufe als Nutzer (RLS) |
 
 ## Daten
 - Eine Tabelle `docs (user_id, path, data jsonb)`, Zugriff per RLS nur auf eigene Zeilen, Realtime aktiv.
@@ -43,6 +44,11 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - **Plan-Editor** (`shPlanEdit`, `shExPick`, `shExEdit`, `pickExercise`, Katalog `EX_CAT` nach Muskelgruppen): auf der Kraft-Übersicht Plan-Zeile ← wischen = bearbeiten, → = starten. Im Editor je Übung → tauschen, ← entfernen, antippen = Sätze/Wdh.-Bereich/Startgewicht/Schritt, ↑ umsortieren, hinzufügen. Gespeichert in `plan.templates[titel]` (`savePlanTpl`, mit Rückgängig). Im Live-Training → wischen tauscht eine Übung nur für dieses Training.
 - `liftRows(titel)` nimmt immer alle Übungen der Vorlage (plus Zusatzübungen der letzten Einheit) und je Übung den letzten Stand aus irgendeiner Einheit. Ausgelassene Übungen verschwinden so nicht.
 
+## Garmin (Forerunner 265)
+- Läufe kommen über `garmin-sync` nach `runs/items/g<activityId>` mit `source: 'garmin'`, `km`, `sec` (Garmin `duration`), optional `hr`, `hrMax`, `elev`, `kcal`, `cad`. Bestehende Einträge werden nie überschrieben. Ein Handeintrag am selben Tag mit ±20 % Distanz wird ersetzt.
+- Status im Dokument `garminsync` (`last`, `added`, `replaced`, `found`, `keys` = Feldnamen der ersten Aktivität zur Kontrolle). App ruft automatisch auf Heute/Training ab (höchstens alle 15 Min., `garminAuto`), Knopf „Abrufen“ in Läufe (`garminCard`). Ist Garmin verbunden, entfällt dort der Knopf „✓ km gelaufen“.
+- Schlüssel erstellt der Nutzer unter connect.garmin.com/app/settings/personalApiToken (max. 1 Jahr gültig), GitHub-Secret `GARMIN_API_KEY`.
+
 ## Trainingsanalyse und Gewicht
 - Reiter **Training › Analyse** (`vAnalysis`): Planerfüllung der letzten 4 Wochen, Kraftverlauf je Übung (geschätztes 1RM nach Epley, ohne Gewicht: Wdh.), bewegtes Gewicht pro Woche, neue Bestleistungen (`prList`), Lauf-Pace und Bestzeiten je Rotationsdistanz, Körpergewicht mit Wochentrend. Diagramme: `lineChart`, `barChart`.
 - **Körpergewicht** in `weights/items/<datum>` (`{date, kg}`), Eintrag über `shWeight` (Analyse, Plus-Menü, Karte auf Heute). Erinnerung, wenn das letzte Wiegen 7 Tage oder länger her ist (`weighDue`), ebenso als Zeile im 10-Uhr-Push (`daily.mjs`).
@@ -65,4 +71,4 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 ## Arbeitsweise
 - Änderungen testen: lokal `python3 -m http.server` und mit Playwright und einem Supabase-Stub (`window.supabase.createClient`) prüfen, Breite 390 px.
 - Commit auf `main` und pushen, GitHub Pages veröffentlicht automatisch unter https://nicolaigaucho.github.io/tagwerk/
-- Keine Geheimnisse ins Repository. Secrets der Actions: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `VAPID_PRIVATE_KEY` (Push) sowie `SUPABASE_ACCESS_TOKEN`, `ANTHROPIC_API_KEY` (Foto-Erkennung).
+- Keine Geheimnisse ins Repository. Secrets der Actions: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `VAPID_PRIVATE_KEY` (Push) sowie `SUPABASE_ACCESS_TOKEN`, `ANTHROPIC_API_KEY` (Foto-Erkennung), `GARMIN_API_KEY` (Garmin).
