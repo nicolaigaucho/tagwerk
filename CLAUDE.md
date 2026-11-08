@@ -36,7 +36,13 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 - 194 cm, 27 Jahre, 87,5 kg, 8,7 % Körperfett, Skelettmuskulatur 46,3 kg (seit 08/2026 −1,3 kg), fettfreie Masse 79,9 kg, Grundumsatz etwa 2.100 kcal.
 - Ziel: **Muskelaufbau**. Tagesziele 3.600 kcal, 175 g Eiweiß, 500 g KH, 100 g Fett, 3,5 l Wasser.
 - Training: Oberkörper 3x (A Brust/Trizeps, B Rücken/Bizeps, C Schultern/Arme), bewusst ohne Beintraining (Wunsch des Nutzers). Läufe 3x mit Rotation 5, 6, 8 km.
-- **Doppelte Progression** (`nextTarget`, `liftRows`): Vorlagen in `plan.templates[titel]` mit `min`, `max` (Wdh.-Bereich), `step` (kg), `hint`. Vorschlag = letzte Einheit +1 Wdh., am oberen Ende +`step` kg und zurück auf `min`. „Geschafft“ speichert den Vorschlag direkt.
+- **Prognose / doppelte Progression** (`progTarget`, `liftRows`): Vorlagen in `plan.templates[titel]` mit `sets`, `min`, `max` (Wdh.-Bereich), `step` (kg), `hint`. Grundlage ist die letzte Einheit **desselben Plans** (Ersatz: irgendein Plan), je Satz aus `log` (Nicht-Drop-Sätze beim Höchstgewicht). Ergebnis `targets` (Wdh. je Satz), `kg`, `up`, `note`. Regeln in dieser Reihenfolge:
+  1. 3x in Folge kein Fortschritt (gleiches kg, Summe Wdh. nicht gestiegen): `deload`, etwa −10 % auf `step` gerundet
+  2. Ø Wdh. unter `min`: `down`, −`step`
+  3. alle Sätze ≥ `max`: `kg`, +`step` und alle auf `min`
+  4. 2x kein Fortschritt: `hold`, Ziel der vorletzten Einheit noch einmal
+  5. sonst `reps`: jeder Satz +1 (begrenzt auf `max`)
+  Anzeige: `progPill`, `tgtText`, `prevText`, `prevBox`. Vorschau auf der Kraft-Übersicht (Plan-Zeile antippen, `plan-prev`) und nach dem Abschließen (`shNext`). Im Live-Training startet der Stepper je Satz mit `targets[k]`. „Geschafft“ speichert die Ziele direkt (inkl. `log`).
 
 ## Kraft-Reiter und Live-Training
 - **Übersicht** (`vStrength`): Kennzahlen (Woche, Volumen, Rekorde 30 Tage, Ø Dauer), die Trainingspläne aus `plan.templates` mit „▶ Start“, Übungsliste mit Trend (Tipp öffnet `shExercise`: Verlauf, Bestwert, letzte Einheiten mit allen Sätzen), Volumen-Diagramm, Verlauf.
