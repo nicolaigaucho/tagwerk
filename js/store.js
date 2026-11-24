@@ -209,8 +209,13 @@
     e.preventDefault();
     const f = e.target, mode = e.submitter?.value || 'login', em = f.email.value.trim(), pw = f.password.value;
     if (!em || pw.length < 6) return showAuth('Bitte E-Mail und ein Passwort mit mindestens 6 Zeichen eingeben.');
+    if (f.dataset.busy) return; // Doppeltippen verhindern (sonst zwei Registrierungen gleichzeitig)
+    f.dataset.busy = '1'; f.querySelectorAll('button').forEach(b => b.disabled = true);
+    const done = () => { delete f.dataset.busy; f.querySelectorAll('button').forEach(b => b.disabled = false); };
     showAuth(mode === 'login' ? 'Melde an …' : 'Erstelle Konto …');
     const res = mode === 'login' ? await sb.auth.signInWithPassword({email: em, password: pw}) : await sb.auth.signUp({email: em, password: pw, options: {emailRedirectTo: location.origin + location.pathname}});
+    done();
+    if (res.error && /already registered|Database error saving new user/i.test(res.error.message)) return showAuth('Diese E-Mail ist schon registriert. Bestätige die E-Mail von Supabase (auch im Spam nachsehen) und tippe dann auf Anmelden.');
     if (res.error) return showAuth(res.error.message.includes('Invalid login') ? 'E-Mail oder Passwort stimmt nicht.' : res.error.message.includes('not confirmed') ? 'Bitte bestätige zuerst die E-Mail von Supabase, dann hier anmelden.' : 'Das hat nicht geklappt: ' + res.error.message);
     if (!res.data.session) return showAuth('Fast fertig: Bestätige die E-Mail von Supabase und melde dich dann hier an.');
     start(res.data.session);
