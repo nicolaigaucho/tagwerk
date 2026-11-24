@@ -110,14 +110,16 @@
   /* ---------- push ---------- */
   const b64ToBytes = s => { const p = '='.repeat((4 - s.length % 4) % 4); const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
   const standalone = () => window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  const android = /Android/i.test(navigator.userAgent);
+  const installHint = android ? 'Bitte zuerst in Chrome über das Menü ⋮ › App installieren und von dort öffnen.' : 'Bitte zuerst über Teilen › Zum Home-Bildschirm installieren und von dort öffnen.';
   function pushState() {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) return standalone() ? 'Dieses Gerät unterstützt keine Mitteilungen.' : 'Lege Tagwerk zuerst auf den Home-Bildschirm und öffne es von dort.';
     if (Notification.permission === 'granted') return 'Aktiv. Jeden Morgen gegen 10 Uhr kommt dein Überblick.';
-    if (Notification.permission === 'denied') return 'Blockiert. Erlaube Mitteilungen in den iPhone-Einstellungen unter Tagwerk.';
+    if (Notification.permission === 'denied') return (android ? 'Blockiert. Erlaube Mitteilungen in den Android-Einstellungen unter Apps › Tagwerk › Benachrichtigungen.' : 'Blockiert. Erlaube Mitteilungen in den iPhone-Einstellungen unter Tagwerk.');
     return 'Noch nicht aktiviert.';
   }
   async function enablePush() {
-    if (!standalone()) return 'Bitte zuerst über Teilen › Zum Home-Bildschirm installieren und von dort öffnen.';
+    if (!standalone()) return installHint;
     if (!CFG.vapidPublicKey) return 'Mitteilungen sind noch nicht eingerichtet.';
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') return 'Mitteilungen wurden nicht erlaubt.';

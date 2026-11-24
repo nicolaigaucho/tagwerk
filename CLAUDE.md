@@ -1,6 +1,6 @@
 # Tagwerk
 
-Persönlicher Alltagsplaner (PWA) für das iPhone eines einzelnen Nutzers: Training, Haushalt, Essen, Einkauf, Auto.
+Persönlicher Alltagsplaner (PWA) für das iPhone des Hauptnutzers (weitere Konten auch auf Android, Hinweistexte in `store.js` je nach Gerät): Training, Haushalt, Essen, Einkauf, Auto.
 Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche verwenden.
 
 ## Aufbau
