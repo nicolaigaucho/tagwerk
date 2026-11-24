@@ -18,6 +18,14 @@ Sprache der App und der Antworten: **Deutsch**. In Texten keine Gedankenstriche 
 | `supabase/functions/food-photo/index.ts` + `.github/workflows/functions.yml` | Foto-Erkennung: Edge Function ruft Claude Opus 5.5 (Bild + Lebensmittel-Liste, strukturierte JSON-Antwort, `fallbacks: "default"`). Wird per GitHub Action mit der Supabase CLI veröffentlicht |
 | `supabase/functions/garmin-sync/index.ts` | Garmin Connect Personal API: tauscht Secret `GARMIN_API_KEY` gegen 24-h-Token (`POST personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token`, Header `Authorization: ApiKey …`, Antwort = JWT als Text), liest `/activitylist-service/activities/search/activities` und schreibt Läufe als Nutzer (RLS) |
 
+## Mehrere Konten
+- Weitere Personen registrieren sich über die Login-Maske und haben über RLS komplett eigene Daten. Der Push (`daily.mjs`) läuft für alle Konten.
+- **Hauptkonto** = Konto angelegt vor `2026-11-24T00:00:00Z` (`OWNER_BEFORE` in `food-photo`, gleiche Grenze in `garmin-sync` und `TW.isMain()` in `store.js`).
+- **Garmin** nur für das Hauptkonto (Funktion antwortet sonst `not_owner`, App blendet Karte und Auto-Abruf aus).
+- **KI-Limit:** weitere Konten 50 Anfragen pro Monat (`MONTH_LIMIT`), gezählt in Dokument `aiusage` (`{month, n, limit}`) nach jedem Claude-Aufruf. Fehler `limit` zeigt die App als Toast, Rest steht unter „Was hast du gegessen?“ und in den Einstellungen (`aiLeft`).
+- **Einrichtung beim ersten Start** (`needsSetup`, `vSetup`, `setupNext`, `setupSave`): erscheint, wenn nach dem Laden vom Server (`TW.loaded()`) weder `settings` noch `plan`, Läufe, Krafteinheiten oder Lebensmittel existieren. 4 Schritte: Körperdaten und Ziel, Tagesziele (Mifflin-St Jeor × Aktivität, Aufbau +300, Abnehmen −400 kcal, Eiweiß 2 g/kg, Fett 0,9 g/kg, Wasser 35 ml/kg), Wochenplan mit Laufstrecken, Schwerpunkt je Krafttag (leere Vorlagen `Kraft A · …`). Speichert `settings` (mit `body`, `onboarded`), `plan` und ein erstes Gewicht. Keine Voreinstellungen für Lebensmittel, Gerichte oder Haushalt.
+- Doc-Snapshots in `store.js` feuern auch für fehlende Dokumente einmal (`exists: false`).
+
 ## Daten
 - Eine Tabelle `docs (user_id, path, data jsonb)`, Zugriff per RLS nur auf eigene Zeilen, Realtime aktiv.
 - Pfade sind relativ zum Nutzer: Einzeldokumente `plan`, `settings`, `autoshop`, `shopstats`, `pushstate`; Sammlungen `<name>/items/<id>` für `shop`, `lifts`, `runs`, `chores`, `foods`, `dishes`, `meals` (ID = Datum), `days` (ID = Datum, Ernährungs-Tagebuch), `trips`, `fuel`, `pantry`, `recipes`, `pushsubs`.

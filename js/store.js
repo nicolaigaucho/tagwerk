@@ -6,7 +6,7 @@
   const CACHE_KEY = 'tw.cache.v1', OUTBOX_KEY = 'tw.outbox.v1';
   const ls = {get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }};
 
-  let uid = null, email = '', prefix = '';
+  let uid = null, email = '', created = '', prefix = '', loaded = false;
   const mem = new Map(Object.entries(ls.get(CACHE_KEY, {})));
   const listeners = new Set();
   let outbox = ls.get(OUTBOX_KEY, []);
@@ -73,7 +73,7 @@
       async set(data) { const d = clone(data); mem.set(p, d); notify(); queue({t: 'set', p, d}); },
       async update(data) { const cur = mem.get(p); if (cur === undefined) throw {code: 'invalid_argument', message: 'Dokument fehlt'}; const d = merge(cur, clone(data)); mem.set(p, d); notify(); queue({t: 'set', p, d}); },
       async delete() { mem.delete(p); notify(); queue({t: 'del', p}); },
-      onSnapshot(next) { let last; const l = {fire() { const d = mem.get(p); const key = JSON.stringify(d); if (key === last) return; last = key; next(docSnap(p, d)); }}; listeners.add(l); setTimeout(() => l.fire(), 0); return () => listeners.delete(l); },
+      onSnapshot(next) { let last = {}; const l = {fire() { const d = mem.get(p); const key = JSON.stringify(d); if (key === last) return; last = key; next(docSnap(p, d)); }}; listeners.add(l); setTimeout(() => l.fire(), 0); return () => listeners.delete(l); },
       collection(sub) { return colRef(full + '/' + sub); }
     };
   }
@@ -188,7 +188,7 @@
     } catch (e) { return {error: 'upstream', detail: String(e?.message || e).slice(0, 200)}; }
   }
 
-  window.TW = {analyzePhoto, garminSync, email: () => email, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
+  window.TW = {analyzePhoto, garminSync, email: () => email, isMain: () => !created || created < '2026-11-24T00:00:00Z', loaded: () => loaded, pushState, enablePush, importFile, logout: async () => { await sb.auth.signOut(); ls.set(CACHE_KEY, {}); ls.set(OUTBOX_KEY, []); location.reload(); }};
 
   /* ---------- auth screen ---------- */
   const authEl = document.getElementById('auth');
@@ -197,9 +197,9 @@
     authEl.querySelector('#auth-msg').textContent = msg;
   }
   async function start(session) {
-    uid = session.user.id; email = session.user.email || ''; prefix = `data/users/${uid}/`;
+    uid = session.user.id; email = session.user.email || ''; created = session.user.created_at || ''; prefix = `data/users/${uid}/`;
     authEl.hidden = true;
-    try { await loadAll(); } catch (e) { console.warn('offline, nutze Cache', e); }
+    try { await loadAll(); loaded = true; } catch (e) { console.warn('offline, nutze Cache', e); }
     subscribeRealtime(); flush();
     resolveReady();
   }

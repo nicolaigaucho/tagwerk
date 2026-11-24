@@ -1,5 +1,10 @@
 // Tagwerk: Essensfoto auswerten. Läuft als Supabase Edge Function, der API-Schlüssel liegt nur hier (Secret ANTHROPIC_API_KEY).
 import Anthropic from "npm:@anthropic-ai/sdk@^0.136.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+
+// Konten, die ab diesem Zeitpunkt angelegt wurden, haben ein Monatslimit (das Hauptkonto ist älter und frei).
+const OWNER_BEFORE = "2026-11-24T00:00:00Z";
+const MONTH_LIMIT = 50;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +53,22 @@ Deno.serve(async (req) => {
   const mediaType = TYPES.includes(String(body.mediaType)) ? String(body.mediaType) : "image/jpeg";
   const text = typeof body.text === "string" ? body.text.trim().slice(0, 300) : "";
   if (!text && (image.length < 100 || image.length > 7_000_000)) return json({ error: "bad_image", detail: `Kein Text und kein gültiges Bild (Bildlänge ${image.length})` });
+  // Anmeldung prüfen und Monatslimit für weitere Konten
+  const auth = req.headers.get("Authorization") || "";
+  const apikey = req.headers.get("apikey") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, apikey, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
+  const { data: u, error: ue } = await sb.auth.getUser(auth.replace(/^Bearer\s+/i, ""));
+  if (ue || !u?.user) return json({ error: "auth", detail: "Nicht angemeldet." });
+  const uid = u.user.id, limited = !(u.user.created_at && u.user.created_at < OWNER_BEFORE);
+  const month = new Date().toISOString().slice(0, 7);
+  let used = 0;
+  if (limited) {
+    const { data: row } = await sb.from("docs").select("data").eq("user_id", uid).eq("path", "aiusage").maybeSingle();
+    used = row?.data?.month === month ? Number(row.data.n) || 0 : 0;
+    if (used >= MONTH_LIMIT) return json({ error: "limit", detail: `Die ${MONTH_LIMIT} Erkennungen für diesen Monat sind aufgebraucht. Ab dem 1. geht es wieder.`, usage: { n: used, limit: MONTH_LIMIT } });
+  }
+  const count = async () => { if (!limited) return null; used++; await sb.from("docs").upsert({ user_id: uid, path: "aiusage", data: { month, n: used, limit: MONTH_LIMIT }, updated_at: new Date().toISOString() }); return { n: used, limit: MONTH_LIMIT }; };
+
   const foods = Array.isArray(body.foods) ? body.foods.slice(0, 60) : [];
   const list = foods
     .map((f: Record<string, unknown>) => `- ID "${String(f.id)}": ${String(f.name)}, 1 Portion = ${String(f.plabel || `${f.portion} g`)} (${Number(f.portion) || 100} g)`)
@@ -100,10 +121,11 @@ So gehst du vor:
     } as never);
     // deno-lint-ignore no-explicit-any
     const r = res as any;
+    const quota = await count();
     if (r.stop_reason === "refusal") return json({ error: "refusal", detail: "Claude hat die Anfrage abgelehnt" });
     const out = (r.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
     try {
-      return json({ result: JSON.parse(out), usage: { in: r.usage?.input_tokens, out: r.usage?.output_tokens } });
+      return json({ result: JSON.parse(out), usage: { in: r.usage?.input_tokens, out: r.usage?.output_tokens }, quota });
     } catch {
       return json({ error: "parse", detail: `Antwort nicht lesbar (stop_reason ${r.stop_reason}): ${out.slice(0, 200)}` });
     }

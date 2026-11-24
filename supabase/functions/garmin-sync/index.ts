@@ -45,6 +45,8 @@ Deno.serve(async (req) => {
   const { data: u, error: ue } = await sb.auth.getUser(auth.replace(/^Bearer\s+/i, ""));
   if (ue || !u?.user) return json({ error: "auth", detail: "Nicht angemeldet." });
   const uid = u.user.id;
+  // Der Garmin-Schlüssel gehört dem Hauptkonto: weitere Konten dürfen ihn nicht nutzen
+  if (!(u.user.created_at && u.user.created_at < "2026-11-24T00:00:00Z")) return json({ error: "not_owner", detail: "Garmin ist nur für das Hauptkonto eingerichtet." });
 
   let body: { days?: number } = {};
   try { body = await req.json(); } catch { /* leer ist ok */ }

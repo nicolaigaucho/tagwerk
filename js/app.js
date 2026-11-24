@@ -64,7 +64,7 @@ const S = {
   tab: store.get('tab', 'heute'),
   sub: Object.assign({train:'plan', home:'putz', food:'tag', car:'fahrten', shop:'liste'}, store.get('sub', {})),
   daysRecent:{}, weekreview:{},
-  shop:[], lifts:[], runs:[], weights:[], aimeals:[], workout:null, wDraft:null, garminsync:{}, gState:'idle', gErr:'', anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
+  shop:[], lifts:[], runs:[], weights:[], aimeals:[], workout:null, wDraft:null, garminsync:{}, aiusage:{}, hasSettings:false, ob:null, gState:'idle', gErr:'', anaEx: store.get('anaEx', ''), chores:[], foods:[], trips:[], fuel:[], pantry:[], recipes:[], dishes:[], meals:{},
   settings:{...DEF_SET}, plan:{}, shopstats:{counts:{}}, autoshop:{}, gotAutoshop:false,
   recipe:null, rState:'idle', rErr:'', rOpt:{meal:'Abendessen', time:'30', servings:'1', wish:''},
   day:{entries:[], water:0}, dayDate: today(), dayDirty:false,
@@ -128,7 +128,8 @@ async function boot() {
     col(n).onSnapshot(s => { S[n] = s.docs.map(x => ({id:x.id, ...x.data()})); got(n); }, onErr));
   col('meals').where('date', '>=', addDays(today(), -60)).onSnapshot(s => {
     const m = {}; s.docs.forEach(x => m[x.id] = x.data()); S.meals = m; got('meals'); }, onErr);
-  one('settings').onSnapshot(s => { S.settings = {...DEF_SET, ...(s.exists ? s.data() : {})}; got('settings'); }, onErr);
+  one('settings').onSnapshot(s => { S.hasSettings = s.exists; S.settings = {...DEF_SET, ...(s.exists ? s.data() : {})}; got('settings'); }, onErr);
+  one('aiusage').onSnapshot(s => { S.aiusage = s.exists ? {...s.data()} : {}; render(); }, onErr);
   one('plan').onSnapshot(s => { S.plan = s.exists ? {...s.data()} : {}; got('plan'); }, onErr);
   one('autoshop').onSnapshot(s => { S.autoshop = s.exists ? {...s.data()} : {}; S.gotAutoshop = true; scheduleSync(); render(); }, onErr);
   col('days').where('date', '>=', addDays(today(), -14)).onSnapshot(s => { const m = {}; s.docs.forEach(x => m[x.id] = x.data()); S.daysRecent = m; render(); }, onErr);
@@ -282,6 +283,9 @@ function draw() {
   $('#tabs').innerHTML = TABS.map(t => `<button data-act="tab" data-v="${t.id}" style="--c:var(${t.c})" ${t.id === S.tab ? 'aria-current="page"' : ''}>${ICON[t.id]}<span>${t.label}</span></button>`).join('');
   const sub = SUBS[S.tab] ? `<div class="seg ${SUBS[S.tab].length > 3 ? 'four' : ''}" role="tablist">${SUBS[S.tab].map(([k,l]) => `<button role="tab" data-act="sub" data-v="${k}" aria-pressed="${S.sub[S.tab] === k}">${l}</button>`).join('')}</div>` : '';
   const views = {heute:vToday, shop:vShop, train:vTrain, home:vHome, food:vFood, car:vCar};
+  const setup = S.ob || needsSetup();
+  $('#tabs').parentElement.style.display = setup ? 'none' : '';
+  if (setup) { $('#app').innerHTML = vSetup(); return; }
   $('#app').innerHTML = `
     <header class="top">
       <div><div class="eyebrow"><i></i>${esc(fDateLong(today()))}</div><h1>${TITLES[S.tab]}</h1></div>
@@ -421,7 +425,7 @@ function vTrain() {
   const mPace = mKm > 0 ? pace(sum(mRuns, r => r.sec), mKm) : '0:00';
   const weeks = []; for (let i = 7; i >= 0; i--) { const ws = addDays(wk, -7*i); weeks.push({ws, km: sum(runs.filter(r => mondayOf(r.date) === ws), r => r.km)}); }
   return `<div class="stack">
-    ${garminCard()}
+    ${isMain() ? garminCard() : ''}
     ${garminOn() ? '' : `<div class="row-actions"><button class="btn acc" style="flex:1" data-act="run-quick" data-v="${rotation()[nextRunIdx()]}">✓ ${fmt(rotation()[nextRunIdx()])} km gelaufen</button><button class="btn ghost" data-act="run-new">Details</button></div>`}
     <div class="stats">
       <div class="stat"><div class="k">Diese Woche</div><div class="v">${fmt(wKm,1)} <small>km</small></div></div>
@@ -435,7 +439,7 @@ function vTrain() {
   </div>`;
 }
 /* ---------- Kraft: Übersicht, Live-Training, Übungsdetails ---------- */
-const planLetter = t => (t.match(/Oberkörper\s+([A-Z])/) || [])[1] || (t.trim()[0] || '?').toUpperCase();
+const planLetter = t => (t.split(' · ')[0].match(/\s([A-Z])$/) || [])[1] || (t.trim()[0] || '?').toUpperCase();
 const planFocus = t => t.split(' · ')[1] || '';
 const workSets = e => arr(e.log).filter(x => !x.drop).length;
 const exLogText = e => arr(e.log).length ? `${e.log.filter(x => !x.drop).map(x => x.reps).join(' · ')} Wdh. × ${fmt(e.kg || 0, 1)} kg${e.log.filter(x => x.drop).map(x => ` · ↓ ${x.reps} × ${fmt(x.kg, 1)} kg`).join('')}` : `${e.sets}×${e.reps}${e.kg ? ` · ${fmt(e.kg, 1)} kg` : ''}`;
@@ -798,7 +802,7 @@ function vFood() {
         ${meter('Eiweiß', tot.p, st.p, 'g')}${meter('Kohlenhydrate', tot.c, st.c, 'g')}${meter('Fett', tot.f, st.f, 'g')}
       </section>
       ${df ? `<section class="card"><div class="item" style="padding:0;border:0"><div class="main"><div class="s">Gericht des Tages</div><div class="t" style="font-size:17px">${esc(df.dish.name)}</div><div class="s">${fmt(df.dish.kcal)} kcal · E ${fmt(df.dish.p)} · K ${fmt(df.dish.c)} · F ${fmt(df.dish.f)}</div></div>${eatenDish ? '<span class="pill solid">gegessen</span>' : `<button class="btn sm acc" data-act="dish-eat" data-v="${S.dayDate}">✓ Gegessen</button>`}</div></section>` : ''}
-      <section class="card stack" style="gap:10px"><div class="card-h" style="margin:0"><h2>Was hast du gegessen?</h2></div>${typeBox()}${recentEstimates() ? `<div class="muted small">Zuletzt geschätzt · 1 Tipp, kostenlos</div>${recentEstimates()}` : '<p class="muted small" style="margin:0">Beschreib dein Essen in eigenen Worten. Claude schätzt Menge und Nährwerte.</p>'}</section>
+      <section class="card stack" style="gap:10px"><div class="card-h" style="margin:0"><h2>Was hast du gegessen?</h2>${aiLeft() != null ? `<span class="muted small">noch ${aiLeft()} diesen Monat</span>` : ''}</div>${typeBox()}${recentEstimates() ? `<div class="muted small">Zuletzt geschätzt · 1 Tipp, kostenlos</div>${recentEstimates()}` : '<p class="muted small" style="margin:0">Beschreib dein Essen in eigenen Worten. Claude schätzt Menge und Nährwerte.</p>'}</section>
       <div class="row-actions"><button class="btn acc" style="flex:1" data-act="photo">📷 Foto vom Essen</button><button class="btn ghost" style="flex:1" data-act="combo">Selbst zusammenstellen</button></div>
       <section class="card"><div class="card-h"><h2>Schnell eintragen · 1 Portion</h2><button class="link" data-act="food-add">Menge wählen</button></div>${quickFoods(14) || '<p class="muted small" style="margin:0">Lege unter „Nährwerte“ Lebensmittel an.</p>'}</section>
       <section class="card stack" style="gap:11px"><div class="card-h" style="margin:0"><h2>Wasser</h2><span class="muted small num">${fmt(S.day.water)} / ${fmt(st.water)} ml</span></div>${waterBtns()}</section>
@@ -986,7 +990,7 @@ function shSettings() {
     <p class="muted small" style="margin:0">Angemeldet als ${esc(TW.email?.() || '')}. Deine Daten liegen privat in deiner eigenen Datenbank.</p>
     <div class="fld"><span class="lab">Tagesüberblick um 10 Uhr</span><p class="small muted" style="margin:0" id="push-state">${esc(TW.pushState?.() || '')}</p>
       <button type="button" class="btn ghost" data-act="push-on">Mitteilungen aktivieren</button></div>
-    <div class="fld"><span class="lab">Essen</span><button type="button" class="btn ghost" data-act="foods">Lebensmittel und Nährwerte</button></div>
+    <div class="fld"><span class="lab">Essen</span><button type="button" class="btn ghost" data-act="foods">Lebensmittel und Nährwerte</button>${aiLeft() != null ? `<p class="small muted" style="margin:0">KI-Erkennung (Foto und Text): noch ${aiLeft()} von ${S.aiusage.limit} in diesem Monat.</p>` : ''}</div>
     <div class="fld"><span class="lab">Daten</span>
       <button type="button" class="btn ghost" data-act="import">Daten importieren (JSON)</button>
       ${downloads ? '<button type="button" class="btn ghost" data-act="backup">Backup herunterladen (JSON)</button>' : ''}</div>
@@ -1144,7 +1148,7 @@ function shFoodAdd() {
 function shGoals() {
   const s = S.settings;
   sheet('Tagesziele', `${stepper('kcal','Kalorien',s.kcal,{steps:[50],unit:'kcal'})}${stepper('water','Wasser',s.water,{steps:[250],unit:'ml'})}${stepper('p','Eiweiß',s.p,{steps:[5],unit:'g'})}${stepper('c','Kohlenhydrate',s.c,{steps:[10],unit:'g'})}${stepper('f','Fett',s.f,{steps:[5],unit:'g'})}`,
-  {mod:'food', onSubmit: f => { if (!needDb()) return false; save(one('settings').set(vals(f, ['kcal','p','c','f','water']))); }});
+  {mod:'food', onSubmit: f => { if (!needDb()) return false; save(one('settings').set({...S.settings, ...vals(f, ['kcal','p','c','f','water'])})); }});
 }
 function shFood(x) {
   sheet(x ? 'Lebensmittel bearbeiten' : 'Lebensmittel anlegen', `
@@ -1340,6 +1344,7 @@ async function analyzeFood(file, text = '') {
   const res = await (window.TW?.analyzePhoto?.(text ? {text, foods} : {image, mediaType: 'image/jpeg', foods}) ?? Promise.resolve({error: 'missing'}));
   if (run !== photoRun || !$('#sheet-root').innerHTML) return;
   closeSheet();
+  if (res.error === 'limit') return toast(res.detail || 'Monatslimit erreicht.');
   if (res.error) {
     const msg = PHOTO_ERR[res.error] || (text ? 'Die Schätzung hat nicht geklappt.' : 'Die Foto-Erkennung hat nicht geklappt.');
     if (!res.detail) return toast(msg);
@@ -1365,6 +1370,7 @@ function reAddEstimate(m) {
   updItem('aimeals', m.id, {uses: (m.uses || 0) + 1, ts: Date.now()});
   toast(`✍️ ${m.title}: ${fmt(m.kcal)} kcal`, {undo: () => { S.day.entries = S.day.entries.filter(e => e.pid !== pid); touchDay(); }, edit: () => shPhotoEdit(pid)});
 }
+const aiLeft = () => S.aiusage.limit ? (S.aiusage.month === today().slice(0, 7) ? Math.max(0, S.aiusage.limit - (S.aiusage.n || 0)) : S.aiusage.limit) : null;
 const typeBox = () => `<form class="addbar" data-form="typed"><input id="typed-in" placeholder="z. B. 2 Leberkäswecken" autocomplete="off" enterkeyhint="send" maxlength="300"><button class="btn acc" style="--accent:var(--food)" type="submit">Schätzen</button></form>`;
 const recentEstimates = (n = 8) => { const m = [...S.aimeals].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, n); return m.length ? `<div class="qchips">${m.map(x => `<button type="button" class="qc" data-act="typed-again" data-id="${x.id}">${esc(x.title)}<small>${fmt(x.kcal)} kcal</small></button>`).join('')}</div>` : ''; };
 function shPhotoEdit(pid) {
@@ -1382,6 +1388,79 @@ function shPhotoEdit(pid) {
     touchDay(); toast('Foto-Eintrag angepasst');
   }, onDelete: () => { S.day.entries = S.day.entries.filter(x => x.pid !== pid); touchDay(); },
   after: form => { const upd = () => { const f = Object.fromEntries(new FormData(form)); const t = photoTotals(items.map((i, k) => photoItem(i, num(f[`pg${k}`])))); $('#photo-sum').textContent = `Summe: ${fmt(t.kcal)} kcal · E ${fmt(t.p)} g · K ${fmt(t.c)} g · F ${fmt(t.f)} g`; }; form.addEventListener('input', upd); upd(); }});
+}
+
+/* ---------- Einrichtung beim ersten Start (neues Konto) ---------- */
+const needsSetup = () => S.status === 'ready' && window.TW?.loaded?.() !== false && ['settings', 'plan', 'lifts', 'runs', 'foods'].every(n => S.got.has(n)) && !S.hasSettings && !Object.keys(S.plan).length && !S.lifts.length && !S.runs.length && !S.foods.length;
+const GOALS = [['aufbau', 'Muskeln aufbauen'], ['halten', 'Gewicht halten'], ['ab', 'Abnehmen']];
+const ACTS = [['1.4', 'Wenig<small>Bürojob, kaum Sport</small>'], ['1.6', 'Mittel<small>3 bis 4x Sport</small>'], ['1.8', 'Viel<small>fast täglich Sport</small>']];
+const DAYTYPES = [['kraft', 'Kraft'], ['lauf', 'Lauf'], ['ruhe', 'Ruhe'], ['', 'frei']];
+function setupGoals(o) {
+  const kg = num(o.kg), bmr = 10 * kg + 6.25 * num(o.cm) - 5 * num(o.age) + (o.sex === 'm' ? 5 : -161);
+  const r = (v, s) => Math.round(v / s) * s;
+  const kcal = r(bmr * num(o.act) + ({aufbau: 300, halten: 0, ab: -400}[o.goal] || 0), 50);
+  const p = r(kg * (o.goal === 'halten' ? 1.8 : 2), 5), f = r(kg * 0.9, 5);
+  return {kcal, p, f, c: Math.max(0, r((kcal - p * 4 - f * 9) / 4, 10)), water: r(kg * 35, 250)};
+}
+function vSetup() {
+  const o = S.ob || {step: 1}, kraftDays = ORDER.filter(k => o['pl_' + k] === 'kraft');
+  const head = (n, t, sub) => `<header class="top"><div><div class="eyebrow"><i></i>Einrichtung · Schritt ${n} von 4</div><h1>${t}</h1></div></header>${sub ? `<p class="muted" style="margin:-6px 0 14px">${sub}</p>` : ''}`;
+  const nav = (next = 'Weiter') => `<div class="row-actions" style="margin-top:6px">${o.step > 1 && o.step < 5 ? '<button type="button" class="btn ghost" data-act="ob-back">Zurück</button>' : ''}<button type="button" class="btn acc" style="flex:1" data-act="ob-next">${next}</button></div>`;
+  let body = '';
+  if (o.step === 1) body = head(1, 'Über dich', 'Willkommen bei Tagwerk. Ein paar Angaben, damit deine Tagesziele passen.') + `<section class="card stack">
+      ${fld('Geschlecht', picks('sex', [['w', 'weiblich'], ['m', 'männlich']], o.sex || ''))}
+      <div class="grid2" style="grid-template-columns:1fr 1fr 1fr">${inp('age', 'Alter', o.age || '', {dec: true, ph: 'Jahre'})}${inp('cm', 'Größe', o.cm || '', {dec: true, ph: 'cm'})}${inp('kg', 'Gewicht', o.kg || '', {dec: true, ph: 'kg'})}</div>
+      ${fld('Dein Ziel', picks('goal', GOALS, o.goal || ''))}
+      ${fld('Wie aktiv bist du?', picks('act', ACTS, o.act || ''))}</section>${nav()}`;
+  else if (o.step === 2) { const g = o.goals || (o.goals = setupGoals(o)); body = head(2, 'Tagesziele', 'Berechnet aus deinen Angaben. Passe an, was nicht stimmt. Später geht das unter Essen › Ziele anpassen.') + `<section class="card stack" style="gap:8px">
+      ${stepper('kcal', 'Kalorien', g.kcal, {steps: [50], unit: 'kcal'})}${stepper('p', 'Eiweiß', g.p, {steps: [5], unit: 'g'})}${stepper('c', 'Kohlenhydrate', g.c, {steps: [10], unit: 'g'})}${stepper('f', 'Fett', g.f, {steps: [5], unit: 'g'})}${stepper('water', 'Wasser', g.water, {steps: [250], unit: 'ml'})}</section>${nav()}`; }
+  else if (o.step === 3) body = head(3, 'Deine Trainingswoche', 'Was machst du an welchem Tag? Nicht sicher: einfach „frei“ lassen, du kannst es jederzeit ändern.') + `<section class="card stack" style="gap:12px">
+      ${ORDER.map(k => fld(WDN[k], picks('pl_' + k, DAYTYPES, o['pl_' + k] || ''))).join('')}
+      ${inp('rot', 'Laufstrecken in km (nur wenn du läufst, mit Komma trennen)', o.rot || '', {ph: 'z. B. 5, 8, 10'})}</section>${nav()}`;
+  else if (o.step === 4) body = head(4, kraftDays.length ? 'Deine Krafttrainings' : 'Fast geschafft', kraftDays.length ? 'Jeder Krafttag bekommt einen eigenen Plan. Gib ihm einen Schwerpunkt, die Übungen trägst du danach ein.' : 'Alles bereit. Deine Listen starten leer und füllen sich, während du die App nutzt.') +
+      (kraftDays.length ? `<section class="card stack">${kraftDays.map((k, i) => inp('foc_' + k, `${WDN[k]} · Plan ${String.fromCharCode(65 + i)}`, o['foc_' + k] || '', {ph: 'z. B. Oberkörper, Beine, Ganzkörper'})).join('')}</section>` : '') + nav('Einrichtung abschließen');
+  else body = `<header class="top"><div><div class="eyebrow"><i></i>Fertig</div><h1>Los geht's 🎉</h1></div></header><section class="card stack" style="gap:10px">
+      <p style="margin:0">Deine Ziele und dein Wochenplan sind gespeichert. So machst du weiter:</p>
+      <div class="list">${[
+        kraftDays.length ? ['🏋️', 'Übungen eintragen', 'Training › Kraft: Plan nach links wischen oder „Bearbeiten“'] : null,
+        ['🥗', 'Lebensmittel anlegen', 'Einstellungen (Zahnrad) › Lebensmittel und Nährwerte'],
+        ['📸', 'Essen per Foto oder Text', `Essen › Ernährung, ${S.aiusage.limit || 50} Erkennungen pro Monat`],
+        ['🔔', 'Mitteilungen', 'App zum Home-Bildschirm hinzufügen, dann in den Einstellungen aktivieren'],
+      ].filter(Boolean).map(([i, t, s]) => `<div class="item"><span style="font-size:22px">${i}</span><div class="main"><div class="t">${t}</div><div class="s">${s}</div></div></div>`).join('')}</div></section>
+      <button type="button" class="btn acc wide" data-act="ob-done">Zur App</button>`;
+  return `<form id="ob-form" class="stack" onsubmit="return false">${body}</form>`;
+}
+function setupRead() { S.ob ||= {step: 1}; const f = $('#ob-form'); if (f) Object.assign(S.ob, Object.fromEntries(new FormData(f))); }
+function setupNext() {
+  setupRead(); const o = S.ob;
+  if (o.step === 1) {
+    if (!o.sex || !o.goal || !o.act) return toast('Bitte Geschlecht, Ziel und Aktivität wählen.');
+    if (!(num(o.age) >= 12 && num(o.age) <= 100 && num(o.cm) >= 120 && num(o.cm) <= 230 && num(o.kg) >= 35 && num(o.kg) <= 250)) return toast('Bitte Alter, Größe (cm) und Gewicht (kg) prüfen.');
+    o.goals = null;
+  }
+  if (o.step === 2) o.goals = vals(o, ['kcal', 'p', 'c', 'f', 'water']);
+  if (o.step === 3) {
+    const rot = String(o.rot || '').split(/[;\s,]+/).map(num).filter(x => x > 0);
+    if (ORDER.some(k => o['pl_' + k] === 'lauf') && !rot.length) return toast('Bitte trag deine Laufstrecken ein, z. B. 5, 8.');
+  }
+  if (o.step === 4) return setupSave();
+  o.step++; render(); scrollTo(0, 0);
+}
+function setupSave() {
+  if (!needDb()) return;
+  const o = S.ob, rot = String(o.rot || '').split(/[;\s,]+/).map(num).filter(x => x > 0), plan = {templates: {}};
+  let n = 0;
+  ORDER.forEach(k => {
+    const type = o['pl_' + k] || '';
+    if (type !== 'kraft') return plan[k] = {type, text: ''};
+    const foc = String(o['foc_' + k] || '').trim(), title = `Kraft ${String.fromCharCode(65 + n++)}${foc ? ' · ' + foc : ''}`;
+    plan.templates[title] = []; plan[k] = {type, text: title};
+  });
+  if (rot.length) plan.rotation = rot;
+  save(one('plan').set(plan));
+  save(one('settings').set({...o.goals, body: {sex: o.sex, age: num(o.age), cm: num(o.cm), kg: num(o.kg), goal: o.goal, act: num(o.act), at: today()}, onboarded: true}));
+  save(col('weights').doc(today()).set({date: today(), kg: num(o.kg), ts: Date.now()}));
+  o.step = 5; render(); scrollTo(0, 0);
 }
 
 /* ---------- Garmin ---------- */
@@ -1402,7 +1481,7 @@ async function garminSync({quiet = false, days} = {}) {
   S.gState = 'idle';
   if (r.error) {
     S.gErr = r.error === 'no_key' || r.error === 'missing' ? '' : (G_ERR[r.error] || 'Garmin-Abruf hat nicht geklappt.') + (r.detail && !G_ERR[r.error] ? ` (${r.detail})` : '');
-    if (r.error === 'no_key' || r.error === 'missing') S.gOff = true;
+    if (['no_key', 'missing', 'not_owner'].includes(r.error)) S.gOff = true;
     if (!quiet) toast(G_ERR[r.error] || 'Garmin-Abruf hat nicht geklappt.');
     return render();
   }
@@ -1411,8 +1490,9 @@ async function garminSync({quiet = false, days} = {}) {
   else if (!quiet) toast('⌚ Alles aktuell, kein neuer Lauf');
   render();
 }
+const isMain = () => window.TW?.isMain?.() ?? true;
 function garminAuto() {
-  if (S.gOff || S.status !== 'ready' || !navigator.onLine || !['heute', 'train'].includes(S.tab)) return;
+  if (!isMain() || S.gOff || S.status !== 'ready' || !navigator.onLine || !['heute', 'train'].includes(S.tab)) return;
   const last = Date.parse(S.garminsync.last || 0) || 0;
   if (Date.now() - last < 15 * 60000 || Date.now() - gAutoAt < 15 * 60000) return;
   gAutoAt = Date.now(); garminSync({quiet: true});
@@ -1537,6 +1617,9 @@ const ACT = {
     woSave(); render(); },
   'wo-undo': v => { const w = S.workout; if (!w) return; const e = w.ex[w.cur], k = Number(v), x = e.log[k]; e.log.splice(k, 1); S.wDraft = null; woSave(); render();
     toast(x.drop ? 'Dropsatz entfernt' : 'Satz entfernt', {undo: () => { e.log.splice(k, 0, x); S.wDraft = null; woSave(); render(); }}); },
+  'ob-next': () => setupNext(),
+  'ob-back': () => { setupRead(); S.ob.step = Math.max(1, S.ob.step - 1); render(); scrollTo(0, 0); },
+  'ob-done': () => { S.ob = null; S.tab = 'heute'; store.set('tab', 'heute'); render(); scrollTo(0, 0); },
   'plan-prev': v => { S.planPrev = S.planPrev === v ? null : v; render(); },
   'wo-drop': () => { const w = S.workout; if (!w) return; const e = w.ex[w.cur], d = woDraft(), last = e.log[e.log.length - 1]; if (!last) return;
     if (d.drop) { S.wDraft = null; return render(); }
